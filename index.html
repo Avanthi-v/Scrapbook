@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Scrapbook</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1 class="title">My Scrapbook</h1>
+            <div class="tape-decor"></div>
+            <p class="subtitle">Collecting moments, one sticker at a time.</p>
+        </header>
+
+        <main id="memory-grid">
+            <!-- Add Button Card -->
+            <div id="add-card" class="polaroid add-card">
+                <div class="photo-frame dashed">
+                    <i data-lucide="camera" class="camera-icon"></i>
+                    <span class="add-text">Add New<br>Memory</span>
+                </div>
+                <div class="pin"></div>
+            </div>
+
+            <!-- Memories will be injected here -->
+        </main>
+
+        <!-- Modal -->
+        <div id="modal" class="modal hidden">
+            <div class="modal-content sticker">
+                <button id="close-modal" class="close-btn"><i data-lucide="x"></i></button>
+                <h2>New Memory</h2>
+                <div class="tape-top"></div>
+
+                <form id="memory-form">
+                    <div class="form-group">
+                        <label><i data-lucide="type"></i> Caption</label>
+                        <textarea id="caption" placeholder="Write something memorable..." required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label><i data-lucide="image"></i> Image</label>
+                        <div class="tab-group">
+                            <button type="button" class="tab active" data-mode="upload">Upload File</button>
+                            <button type="button" class="tab" data-mode="url">Image URL</button>
+                        </div>
+
+                        <div id="upload-input-container" class="input-container">
+                            <div class="file-drop-area" id="file-drop-area">
+                                <i data-lucide="upload"></i>
+                                <span id="file-label">Click to Upload Photo</span>
+                                <input type="file" id="file-input" accept="image/*" hidden>
+                            </div>
+                        </div>
+
+                        <div id="url-input-container" class="input-container hidden">
+                            <input type="text" id="url-input" placeholder="https://example.com/photo.jpg">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="submit-btn">Stick it!</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>

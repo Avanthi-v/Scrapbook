@@ -1,0 +1,362 @@
+@import url('https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap');
+
+:root {
+    --paper-bg: #fdfbf7;
+    --ink-color: #2d2d2d;
+    --tape-red: #ff6b6b;
+    --tape-teal: #4ecdc4;
+    --tape-yellow: #ffe66d;
+    --brown-text: #5d4037;
+    --font-hand: 'Patrick Hand', cursive;
+    --shadow-sm: 2px 2px 5px rgba(0, 0, 0, 0.1);
+    --shadow-md: 4px 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: var(--font-hand);
+    background-color: var(--paper-bg);
+    background-image:
+        radial-gradient(#e5e5e5 1px, transparent 1px),
+        radial-gradient(#e5e5e5 1px, transparent 1px);
+    background-size: 20px 20px;
+    background-position: 0 0, 10px 10px;
+    color: var(--ink-color);
+    line-height: 1.4;
+    min-height: 100vh;
+    padding: 2rem;
+}
+
+/* Typography */
+.title {
+    font-size: 4rem;
+    transform: rotate(-2deg);
+    background: white;
+    padding: 0.5rem 2rem;
+    border: 2px solid #eee;
+    box-shadow: var(--shadow-md);
+    display: inline-block;
+    color: #2c3e50;
+    transition: transform 0.3s;
+}
+
+.title:hover {
+    transform: scale(1.05) rotate(-2deg);
+}
+
+.subtitle {
+    font-size: 1.5rem;
+    color: #666;
+    margin-top: 1rem;
+    transform: rotate(1deg);
+}
+
+header {
+    text-align: center;
+    margin-bottom: 3rem;
+    position: relative;
+}
+
+.tape-decor {
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%) rotate(-2deg);
+    width: 180px;
+    height: 30px;
+    background: rgba(255, 107, 107, 0.3);
+    filter: blur(0.5px);
+}
+
+/* Grid Layout - 6 Columns Logic */
+.container {
+    max-width: 1400px;
+    /* Wider container for 6 items */
+    margin: 0 auto;
+}
+
+#memory-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    /* Mobile: 2 cols */
+    gap: 1.5rem;
+    padding-bottom: 5rem;
+}
+
+@media (min-width: 768px) {
+    #memory-grid {
+        grid-template-columns: repeat(4, 1fr);
+        /* Tablet: 4 cols */
+    }
+}
+
+@media (min-width: 1200px) {
+    #memory-grid {
+        grid-template-columns: repeat(6, 1fr);
+        /* Desktop: 6 cols */
+    }
+}
+
+/* Polaroid / Sticker Styles */
+.polaroid {
+    background: white;
+    padding: 0.5rem 0.5rem 1.5rem 0.5rem;
+    /* Reduced padding */
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s, z-index 0s;
+    cursor: default;
+    position: relative;
+    height: fit-content;
+}
+
+.polaroid:hover {
+    transform: scale(1.05) !important;
+    /* Override random rotation on hover */
+    z-index: 10;
+    box-shadow: var(--shadow-md);
+}
+
+.photo-frame {
+    background: #f3f3f3;
+    width: 100%;
+    aspect-ratio: 1/1;
+    overflow: hidden;
+    border: 1px solid #ddd;
+    margin-bottom: 0.5rem;
+}
+
+.photo-frame img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.photo-frame.dashed {
+    border: 2px dashed #ccc;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #aaa;
+    cursor: pointer;
+    transition: color 0.3s, border-color 0.3s;
+}
+
+.add-card:hover .photo-frame.dashed {
+    border-color: var(--tape-teal);
+    color: var(--tape-teal);
+}
+
+.caption {
+    font-family: var(--font-hand);
+    font-size: 0.9rem;
+    /* Smaller font */
+    text-align: center;
+    word-wrap: break-word;
+    line-height: 1.2;
+}
+
+.add-text {
+    font-family: var(--font-hand);
+    font-weight: bold;
+    font-size: 0.9rem;
+    text-align: center;
+    line-height: 1.1;
+}
+
+/* Pin / Delete Button */
+.delete-btn {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #ff5252;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+    cursor: pointer;
+}
+
+.polaroid:hover .delete-btn {
+    opacity: 1;
+}
+
+/* Add Card Pin Decor */
+.pin {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 24px;
+    height: 24px;
+    background: var(--tape-yellow);
+    border-radius: 50%;
+    box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    color: white;
+    font-weight: bold;
+}
+
+.pin::after {
+    content: '+';
+}
+
+/* Modal Styling */
+.hidden {
+    display: none !important;
+}
+
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.modal-content.sticker {
+    background: #fff9c4;
+    /* Sticky note yellow */
+    width: 100%;
+    max-width: 400px;
+    padding: 1.5rem;
+    box-shadow: var(--shadow-md);
+    position: relative;
+    transform: rotate(1deg);
+    border-radius: 2px;
+}
+
+.tape-top {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%) rotate(1deg);
+    width: 120px;
+    height: 24px;
+    background: rgba(78, 205, 196, 0.8);
+    /* Teal tape */
+}
+
+.modal h2 {
+    text-align: center;
+    color: var(--brown-text);
+    border-bottom: 2px solid #e6e0a8;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: bold;
+    color: var(--brown-text);
+    margin-bottom: 0.25rem;
+}
+
+textarea,
+input[type="text"] {
+    width: 100%;
+    font-family: var(--font-hand);
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.7);
+}
+
+textarea {
+    height: 80px;
+    resize: none;
+}
+
+.tab-group {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.tab {
+    flex: 1;
+    padding: 0.25rem;
+    font-family: var(--font-hand);
+    font-weight: bold;
+    cursor: pointer;
+    background: #eee;
+    border: none;
+    border-radius: 4px;
+}
+
+.tab.active {
+    background: var(--brown-text);
+    color: white;
+}
+
+.file-drop-area {
+    border: 2px dashed #999;
+    background: rgba(255, 255, 255, 0.4);
+    padding: 1rem;
+    text-align: center;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    color: #666;
+    border-radius: 4px;
+}
+
+.file-drop-area:hover {
+    background: rgba(255, 255, 255, 0.8);
+    border-color: var(--brown-text);
+}
+
+.submit-btn {
+    width: 100%;
+    background: var(--tape-red);
+    color: white;
+    font-family: var(--font-hand);
+    font-weight: bold;
+    font-size: 1.2rem;
+    padding: 0.5rem;
+    border: none;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.submit-btn:hover {
+    transform: translateY(-2px);
+    background: #ff5252;
+}
+
+.close-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #666;
+}
