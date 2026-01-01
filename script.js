@@ -1,6 +1,11 @@
 // Initialize Icons
 lucide.createIcons();
 
+// Supabase Configuration
+const SUPABASE_URL = 'https://axmllmliekjkgtxvglnx.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_VF2mhtEhcH-ylutp2fdJQw_NL-Uu-oK'; // NOTE: Ideally use env vars, but okay for pure static demo
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
 // DOM Elements
 const memoryGrid = document.getElementById('memory-grid');
 const addCard = document.getElementById('add-card');
@@ -16,21 +21,49 @@ const uploadContainer = document.getElementById('upload-input-container');
 const urlContainer = document.getElementById('url-input-container');
 const tabs = document.querySelectorAll('.tab');
 
-let memories = JSON.parse(localStorage.getItem('scrapbook_memories')) || [
-    {
-        id: Date.now(),
-        text: "My New Scrapbook Project!",
-        image: "https://images.unsplash.com/photo-1544376798-89aa6b82c6cd?q=80&w=1000&auto=format&fit=crop",
-        rotation: -2
-    }
-];
-
-let currentImage = null;
+let memories = [];
+let fileToUpload = null;
 
 // Initial Render
-renderMemories();
+fetchMemories();
 
-// Event Listeners
+// --- Supabase Logic ---
+
+async function fetchMemories() {
+    const { data, error } = await supabase
+        .from('memories')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching memories:', error);
+        alert('Could not load memories. Check console.');
+    } else {
+        memories = data;
+        renderMemories();
+    }
+}
+
+async function uploadImage(file) {
+    const fileName = `${Date.now()}-${file.name}`;
+    const { data, error } = await supabase.storage
+        .from('scrapbook-memories')
+        .upload(fileName, file);
+
+    if (error) {
+        console.error('Upload error:', error);
+        throw error;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+        .from('scrapbook-memories')
+        .getPublicUrl(fileName);
+
+    return publicUrl;
+}
+
+// --- Event Listeners ---
+
 addCard.addEventListener('click', () => {
     modal.classList.remove('hidden');
     resetForm();
@@ -67,77 +100,95 @@ fileDropArea.addEventListener('click', () => fileInput.click());
 
 fileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
-    handleFile(file);
-});
-
-function handleFile(file) {
     if (file) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            currentImage = reader.result;
-            fileLabel.textContent = "Image Selected: " + file.name;
-            fileLabel.style.color = "green";
-            fileLabel.style.fontWeight = "bold";
-        };
-        reader.readAsDataURL(file);
+        fileToUpload = file;
+        fileLabel.textContent = "Selected: " + file.name;
+        fileLabel.style.color = "green";
+        fileLabel.style.fontWeight = "bold";
     }
-}
+});
 
 // Form Submission
-memoryForm.addEventListener('submit', (e) => {
+memoryForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    // If URL mode is active (and input is not hidden), use that input
-    if (!uploadContainer.classList.contains('hidden')) {
-        // Upload mode: currentImage is already set by FileReader
-    } else {
-        // URL mode
-        currentImage = urlInput.value;
+    const submitBtn = document.querySelector('.submit-btn');
+    const originalBtnText = submitBtn.textContent;
+    submitBtn.textContent = 'Sticking...';
+    submitBtn.disabled = true;
+
+    try {
+        let imageUrl = null;
+
+        // Determine Image Source
+        if (!uploadContainer.classList.contains('hidden')) {
+            // Upload Mode
+            if (fileToUpload) {
+                imageUrl = await uploadImage(fileToUpload);
+            }
+        } else {
+            // URL Mode
+            imageUrl = urlInput.value;
+        }
+
+        if (!captionInput.value && !imageUrl) {
+            throw new Error("Please add a caption or an image.");
+        }
+
+        const newMemory = {
+            text: captionInput.value,
+            image: imageUrl,
+            rotation: Math.random() * 10 - 5
+        };
+
+        const { data, error } = await supabase
+            .from('memories')
+            .insert([newMemory])
+            .select();
+
+        if (error) throw error;
+
+        // Add to local list immediately for responsiveness (or just refetch)
+        memories.unshift(data[0]);
+        renderMemories();
+        modal.classList.add('hidden');
+
+    } catch (err) {
+        console.error(err);
+        alert('Error saving memory: ' + err.message);
+    } finally {
+        submitBtn.textContent = originalBtnText;
+        submitBtn.disabled = false;
     }
-
-    if (!captionInput.value && !currentImage) return;
-
-    const newMemory = {
-        id: Date.now(),
-        text: captionInput.value,
-        image: currentImage,
-        rotation: Math.random() * 10 - 5
-    };
-
-    memories.unshift(newMemory); // Add to beginning
-    saveMemories();
-    renderMemories();
-
-    modal.classList.add('hidden');
 });
 
-function deleteMemory(id) {
+async function deleteMemory(id) {
     if (confirm('Rip this page out?')) {
-        memories = memories.filter(m => m.id !== id);
-        saveMemories();
-        renderMemories();
-    }
-}
+        const { error } = await supabase
+            .from('memories')
+            .delete()
+            .eq('id', id);
 
-function saveMemories() {
-    localStorage.setItem('scrapbook_memories', JSON.stringify(memories));
+        if (error) {
+            console.error('Delete error:', error);
+            alert('Failed to delete.');
+        } else {
+            memories = memories.filter(m => m.id !== id);
+            renderMemories();
+        }
+    }
 }
 
 function renderMemories() {
-    // Clear everything except base structure if needed, but easier to rebuild grid
-    // Keep the "Add Card" as the first element always
-
-    // 1. Remove all mem-cards
+    // 1. Remove all old mem-cards (keeping the add-card)
     const existingCards = document.querySelectorAll('.mem-card');
     existingCards.forEach(c => c.remove());
 
-    // 2. Insert new cards after the "add-card"
+    // 2. Insert new cards
     memories.forEach(memory => {
         const card = document.createElement('div');
         card.className = 'polaroid mem-card';
         card.style.transform = `rotate(${memory.rotation}deg)`;
-
-        // Add random hover z-index interaction handled by CSS mostly, but specific rotation needs JS
 
         const imgHtml = memory.image
             ? `<img src="${memory.image}" alt="Memory">`
@@ -156,14 +207,15 @@ function renderMemories() {
         memoryGrid.appendChild(card);
     });
 
-    lucide.createIcons(); // Refresh icons for new elements
+    lucide.createIcons();
 }
 
 function resetForm() {
     captionInput.value = '';
     urlInput.value = '';
     fileInput.value = '';
-    currentImage = null;
+    fileToUpload = null;
     fileLabel.textContent = "Click to Upload Photo";
     fileLabel.style.color = "#666";
+    fileLabel.style.fontWeight = "normal";
 }
