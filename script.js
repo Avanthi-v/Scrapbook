@@ -1,10 +1,16 @@
-// Initialize Icons
-lucide.createIcons();
+// Initialize Icons (Wrapped to ensure load)
+document.addEventListener('DOMContentLoaded', () => {
+    try {
+        lucide.createIcons();
+    } catch (e) {
+        console.error("Lucide Error", e);
+    }
+});
 
 // Supabase Configuration
 const SUPABASE_URL = 'https://axmllmliekjkgtxvglnx.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_VF2mhtEhcH-ylutp2fdJQw_NL-Uu-oK'; // NOTE: Ideally use env vars, but okay for pure static demo
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const SUPABASE_KEY = 'sb_publishable_VF2mhtEhcH-ylutp2fdJQw_NL-Uu-oK';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // DOM Elements
 const memoryGrid = document.getElementById('memory-grid');
@@ -30,7 +36,7 @@ fetchMemories();
 // --- Supabase Logic ---
 
 async function fetchMemories() {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
         .from('memories')
         .select('*')
         .order('created_at', { ascending: false });
@@ -46,7 +52,7 @@ async function fetchMemories() {
 
 async function uploadImage(file) {
     const fileName = `${Date.now()}-${file.name}`;
-    const { data, error } = await supabase.storage
+    const { data, error } = await supabaseClient.storage
         .from('scrapbook-memories')
         .upload(fileName, file);
 
@@ -55,7 +61,7 @@ async function uploadImage(file) {
         throw error;
     }
 
-    const { data: { publicUrl } } = supabase.storage
+    const { data: { publicUrl } } = supabaseClient.storage
         .from('scrapbook-memories')
         .getPublicUrl(fileName);
 
@@ -65,8 +71,14 @@ async function uploadImage(file) {
 // --- Event Listeners ---
 
 addCard.addEventListener('click', () => {
-    modal.classList.remove('hidden');
-    resetForm();
+    console.log("Add Card Clicked");
+    try {
+        modal.classList.remove('hidden');
+        resetForm();
+    } catch (e) {
+        console.error("Error opening modal:", e);
+        alert("Something went wrong opening the form: " + e.message);
+    }
 });
 
 closeModal.addEventListener('click', () => {
@@ -120,64 +132,58 @@ memoryForm.addEventListener('submit', async (e) => {
     try {
         let imageUrl = null;
 
-        // Determine Image Source
-        if (!uploadContainer.classList.contains('hidden')) {
-            // Upload Mode
-            if (fileToUpload) {
+        // 1. Image Upload Phase
+        if (!uploadContainer.classList.contains('hidden') && fileToUpload) {
+            try {
                 imageUrl = await uploadImage(fileToUpload);
+            } catch (uploadErr) {
+                console.error("Upload Failed:", uploadErr);
+                alert(`Image Upload Failed: ${uploadErr.message}. \n\nCheck if your Storage Bucket policy allows uploads or if the bucket exists.`);
+                throw new Error("Aggregated Upload Error"); // Stop execution
             }
-        } else {
-            // URL Mode
+        } else if (urlContainer && !uploadContainer.classList.contains('hidden') === false) {
             imageUrl = urlInput.value;
         }
 
         if (!captionInput.value && !imageUrl) {
-            throw new Error("Please add a caption or an image.");
+            alert("Please provide text or an image!");
+            return;
         }
 
+        // 2. Database Insert Phase
         const newMemory = {
             text: captionInput.value,
             image: imageUrl,
             rotation: Math.random() * 10 - 5
         };
 
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('memories')
             .insert([newMemory])
             .select();
 
-        if (error) throw error;
+        if (error) {
+            console.error("Database Insert Failed:", error);
+            alert(`Database Save Failed: ${error.message}. \n\nCheck if your Table 'memories' exists and if RLS is disabled (or allows 'anon' inserts).`);
+            throw error;
+        }
 
-        // Add to local list immediately for responsiveness (or just refetch)
+        // Success
         memories.unshift(data[0]);
         renderMemories();
         modal.classList.add('hidden');
 
     } catch (err) {
-        console.error(err);
-        alert('Error saving memory: ' + err.message);
+        if (err.message !== "Aggregated Upload Error") {
+            // General catch
+        }
     } finally {
         submitBtn.textContent = originalBtnText;
         submitBtn.disabled = false;
     }
 });
 
-async function deleteMemory(id) {
-    if (confirm('Rip this page out?')) {
-        const { error } = await supabase
-            .from('memories')
-            .delete()
-            .eq('id', id);
-
-        if (error) {
-            console.error('Delete error:', error);
-            alert('Failed to delete.');
-        } else {
-            memories = memories.filter(m => m.id !== id);
-            renderMemories();
-        }
-    }
-}
+// function deleteMemory(id) removed per user request
 
 function renderMemories() {
     // 1. Remove all old mem-cards (keeping the add-card)
@@ -199,9 +205,7 @@ function renderMemories() {
                 ${imgHtml}
             </div>
             <div class="caption">${memory.text}</div>
-            <button class="delete-btn" onclick="deleteMemory(${memory.id})">
-                <i data-lucide="x" width="14" height="14"></i>
-            </button>
+            <!-- Delete button removed -->
         `;
 
         memoryGrid.appendChild(card);
