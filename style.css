@@ -136,6 +136,12 @@ header {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transition: transform 0.3s ease;
+    cursor: pointer;
+}
+
+.photo-frame img:hover {
+    transform: scale(1.15);
 }
 
 .photo-frame.dashed {
@@ -161,6 +167,20 @@ header {
     text-align: center;
     word-wrap: break-word;
     line-height: 1.2;
+}
+
+.memory-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.memory-date {
+    font-family: var(--font-hand);
+    font-size: 0.75rem;
+    text-align: center;
+    color: #999;
+    font-style: italic;
+    margin-bottom: 0.1rem;
 }
 
 .add-text {
@@ -281,7 +301,7 @@ input[type="text"] {
     width: 100%;
     font-family: var(--font-hand);
     padding: 0.5rem;
-    border: 1px solid #ccc;
+    border: 1px solid #ccccccde;
     border-radius: 4px;
     background: rgba(255, 255, 255, 0.7);
 }
@@ -351,6 +371,24 @@ textarea {
     background: #ff5252;
 }
 
+.save-notes-btn {
+    background: var(--tape-teal);
+    color: white;
+    font-family: var(--font-hand);
+    font-weight: bold;
+    font-size: 1.2rem;
+    padding: 0.5rem;
+    border: none;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.save-notes-btn:hover {
+    transform: translateY(-2px);
+    background: #36b5ad;
+}
+
 .close-btn {
     position: absolute;
     top: 0.5rem;
@@ -359,4 +397,135 @@ textarea {
     border: none;
     cursor: pointer;
     color: #666;
+}
+
+/* Image Modal Styles */
+.image-modal-content {
+    background: rgba(50, 50, 50, 0.9);
+    padding: 2rem;
+    border-radius: 8px;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.image-modal-content img {
+    max-width: 90%;
+    max-height: 80vh;
+    object-fit: contain;
+    border-radius: 8px;
+}
+
+.image-modal-content .close-btn {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    color: white;
+    z-index: 101;
+}
+
+/* Notepad Sidebar Styles */
+.notepad-sidebar {
+    position: fixed;
+    right: 0;
+    top: 0;
+    width: 300px;
+    height: 100vh;
+    background: #fff34fa9;
+    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.15);
+    z-index: 99;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease;
+}
+
+.notepad-sidebar.hidden {
+    transform: translateX(100%);
+}
+
+.notepad-sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 2px solid #e6e0a8;
+}
+
+.notepad-sidebar-header h2 {
+    color: var(--brown-text);
+    margin: 0;
+}
+
+.notepad-sidebar-header .close-btn {
+    position: static;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #666;
+    padding: 0;
+}
+
+.notepad-sidebar textarea {
+    flex: 1;
+    margin: 1rem;
+    font-family: var(--font-hand);
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.9);
+    resize: none;
+}
+
+.notepad-sidebar .notepad-input-area {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0 1rem 1rem 1rem;
+}
+
+.notepad-sidebar .notepad-input-area input {
+    flex: 1;
+    font-family: var(--font-hand);
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.9);
+}
+
+.notepad-sidebar .notepad-input-area .save-notes-btn {
+    width: auto;
+    flex: 0.2;
+    font-size: 0.9rem;
+    padding: 0.2rem;
+}
+
+/* Notepad Icon - Fixed at Bottom Right */
+.notepad-icon {
+    position: fixed;
+    bottom: 0.5rem;
+    right: 0.5rem;
+    width: 15px;
+    height: 10px;
+    background: var(--paper-bg);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(254, 253, 253, 0);
+    transition: transform 0.3s, box-shadow 0.3s;
+    z-index: 50;
+    /* border: 2px solid #ddd; */
+}
+
+.notepad-icon:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.notepad-icon i {
+    color: #666;
+    font-size: 1.2rem;
 }

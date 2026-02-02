@@ -34,7 +34,15 @@
             <!-- Memories will be injected here -->
         </main>
 
-        <!-- Modal -->
+        <!-- Image Modal for Large View -->
+        <div id="image-modal" class="modal hidden">
+            <div class="image-modal-content">
+                <button id="close-image-modal" class="close-btn"><i data-lucide="x"></i></button>
+                <img id="modal-image" src="" alt="Large view">
+            </div>
+        </div>
+
+        <!-- Memory Form Modal -->
         <div id="modal" class="modal hidden">
             <div class="modal-content sticker">
                 <button id="close-modal" class="close-btn"><i data-lucide="x"></i></button>
@@ -45,6 +53,11 @@
                     <div class="form-group">
                         <label><i data-lucide="type"></i> Caption</label>
                         <textarea id="caption" placeholder="Write something memorable..." required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label><i data-lucide="calendar"></i> Date (Optional)</label>
+                        <input type="date" id="memory-date">
                     </div>
 
                     <div class="form-group">
@@ -70,6 +83,24 @@
                     <button type="submit" class="submit-btn">Stick it!</button>
                 </form>
             </div>
+        </div>
+
+        <!-- Notepad Sidebar -->
+        <div id="notepad-sidebar" class="notepad-sidebar hidden">
+            <div class="notepad-sidebar-header">
+                <h2>Notes</h2>
+                <button id="close-notepad" class="close-btn"><i data-lucide="x"></i></button>
+            </div>
+            <textarea id="notepad-text" placeholder="Your notes will appear here..." readonly></textarea>
+            <div class="notepad-input-area">
+                <input type="text" id="new-note-input" placeholder="Add a new entry...">
+                <button id="save-notes-btn" class="save-notes-btn">Add</button>
+            </div>
+        </div>
+
+        <!-- Notepad Icon (Fixed at bottom-right) -->
+        <div id="notepad-icon" class="notepad-icon">
+            <i data-lucide="pencil"></i>
         </div>
     </div>
     <script src="script.js?v=2"></script>

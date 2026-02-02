@@ -19,6 +19,7 @@ const modal = document.getElementById('modal');
 const closeModal = document.getElementById('close-modal');
 const memoryForm = document.getElementById('memory-form');
 const captionInput = document.getElementById('caption');
+const memoryDateInput = document.getElementById('memory-date');
 const urlInput = document.getElementById('url-input');
 const fileInput = document.getElementById('file-input');
 const fileDropArea = document.getElementById('file-drop-area');
@@ -27,11 +28,77 @@ const uploadContainer = document.getElementById('upload-input-container');
 const urlContainer = document.getElementById('url-input-container');
 const tabs = document.querySelectorAll('.tab');
 
+// Image Modal Elements
+const imageModal = document.getElementById('image-modal');
+const closeImageModal = document.getElementById('close-image-modal');
+const modalImage = document.getElementById('modal-image');
+
+// Notepad Elements
+const notepadIcon = document.getElementById('notepad-icon');
+const notepadSidebar = document.getElementById('notepad-sidebar');
+const closeNotepad = document.getElementById('close-notepad');
+const notepadText = document.getElementById('notepad-text');
+const newNoteInput = document.getElementById('new-note-input');
+const saveNotesBtn = document.getElementById('save-notes-btn');
+
 let memories = [];
 let fileToUpload = null;
+let notes = [];
+let notepadOpen = false;
 
 // Initial Render
 fetchMemories();
+fetchNotes();
+
+// --- Notes Functions ---
+async function fetchNotes() {
+    const { data, error } = await supabaseClient
+        .from('notes')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching notes:', error);
+    } else {
+        notes = data || [];
+        displayNotes();
+    }
+}
+
+function displayNotes() {
+    notepadText.value = notes.map(note => `[${new Date(note.created_at).toLocaleDateString()}] ${note.note_message}`).join('\n\n');
+}
+
+async function saveNotes() {
+    const noteText = newNoteInput.value.trim();
+    if (!noteText) {
+        alert("Please write something!");
+        return;
+    }
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('notes')
+            .insert([{ note_message: noteText }])
+            .select();
+
+        if (error) {
+            console.error("Database Save Failed:", error);
+            alert(`Failed to save note: ${error.message}`);
+            return;
+        }
+
+        notes.unshift(data[0]);
+        displayNotes();
+        newNoteInput.value = '';
+        saveNotesBtn.textContent = 'Added!';
+        setTimeout(() => {
+            saveNotesBtn.textContent = 'Add Note';
+        }, 1500);
+    } catch (err) {
+        console.error("Error saving note:", err);
+    }
+}
 
 // --- Supabase Logic ---
 
@@ -90,6 +157,35 @@ modal.addEventListener('click', (e) => {
         modal.classList.add('hidden');
     }
 });
+
+// Image Modal Events
+closeImageModal.addEventListener('click', () => {
+    imageModal.classList.add('hidden');
+});
+
+imageModal.addEventListener('click', (e) => {
+    if (e.target === imageModal) {
+        imageModal.classList.add('hidden');
+    }
+});
+
+// Notepad Events
+notepadIcon.addEventListener('click', () => {
+    if (notepadOpen) {
+        notepadSidebar.classList.add('hidden');
+        notepadOpen = false;
+    } else {
+        notepadSidebar.classList.remove('hidden');
+        notepadOpen = true;
+    }
+});
+
+closeNotepad.addEventListener('click', () => {
+    notepadSidebar.classList.add('hidden');
+    notepadOpen = false;
+});
+
+saveNotesBtn.addEventListener('click', saveNotes);
 
 // Tab Switching
 tabs.forEach(tab => {
@@ -154,6 +250,7 @@ memoryForm.addEventListener('submit', async (e) => {
         const newMemory = {
             text: captionInput.value,
             image: imageUrl,
+            memory_date: memoryDateInput.value || null,
             rotation: Math.random() * 10 - 5
         };
 
@@ -197,18 +294,34 @@ function renderMemories() {
         card.style.transform = `rotate(${memory.rotation}deg)`;
 
         const imgHtml = memory.image
-            ? `<img src="${memory.image}" alt="Memory">`
+            ? `<img src="${memory.image}" alt="Memory" class="memory-img" data-image="${memory.image}">`
             : `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#ccc; font-size:0.8rem;">No Image</div>`;
+
+        const dateHtml = memory.memory_date 
+            ? `<div class="memory-date">${new Date(memory.memory_date).toLocaleDateString()} -</div>`
+            : '';
 
         card.innerHTML = `
             <div class="photo-frame">
                 ${imgHtml}
             </div>
-            <div class="caption">${memory.text}</div>
-            <!-- Delete button removed -->
+            <div class="memory-content">
+                ${dateHtml}
+                <div class="caption">${memory.text}</div>
+            </div>
         `;
 
         memoryGrid.appendChild(card);
+
+        // Add click event to images for modal view
+        if (memory.image) {
+            const img = card.querySelector('.memory-img');
+            img.addEventListener('click', (e) => {
+                e.stopPropagation();
+                modalImage.src = memory.image;
+                imageModal.classList.remove('hidden');
+            });
+        }
     });
 
     lucide.createIcons();
@@ -216,6 +329,7 @@ function renderMemories() {
 
 function resetForm() {
     captionInput.value = '';
+    memoryDateInput.value = '';
     urlInput.value = '';
     fileInput.value = '';
     fileToUpload = null;
