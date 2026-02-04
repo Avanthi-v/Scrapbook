@@ -37,7 +37,7 @@ const modalImage = document.getElementById('modal-image');
 const notepadIcon = document.getElementById('notepad-icon');
 const notepadSidebar = document.getElementById('notepad-sidebar');
 const closeNotepad = document.getElementById('close-notepad');
-const notepadText = document.getElementById('notepad-text');
+const notesList = document.getElementById('notes-list');
 const newNoteInput = document.getElementById('new-note-input');
 const saveNotesBtn = document.getElementById('save-notes-btn');
 
@@ -55,6 +55,7 @@ async function fetchNotes() {
     const { data, error } = await supabaseClient
         .from('notes')
         .select('*')
+        .or('notes_removed.is.null,notes_removed.eq.false')
         .order('created_at', { ascending: false });
 
     if (error) {
@@ -66,7 +67,37 @@ async function fetchNotes() {
 }
 
 function displayNotes() {
-    notepadText.value = notes.map(note => `[${new Date(note.created_at).toLocaleDateString()}] ${note.note_message}`).join('\n\n');
+    const notesList = document.getElementById('notes-list');
+    
+    if (notes.length === 0) {
+        notesList.innerHTML = '<div style="text-align: center; color: #999; padding: 2rem 1rem;">No notes yet. Add one to get started!</div>';
+        return;
+    }
+    
+    notesList.innerHTML = '';
+    
+    notes.forEach((note, index) => {
+        const noteEntry = document.createElement('div');
+        noteEntry.className = 'note-entry';
+        noteEntry.setAttribute('data-note-id', note.id);
+        noteEntry.setAttribute('data-note-index', index);
+        
+        const noteDate = new Date(note.created_at).toLocaleDateString();
+        const noteText = `[${noteDate}] ${note.note_message}`;
+        
+        noteEntry.innerHTML = `
+            ${noteText}
+            <button class="note-delete-btn" title="Delete note">×</button>
+        `;
+        
+        const deleteBtn = noteEntry.querySelector('.note-delete-btn');
+        deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteNote(note.id, index);
+        });
+        
+        notesList.appendChild(noteEntry);
+    });
 }
 
 async function saveNotes() {
@@ -79,7 +110,7 @@ async function saveNotes() {
     try {
         const { data, error } = await supabaseClient
             .from('notes')
-            .insert([{ note_message: noteText }])
+            .insert([{ note_message: noteText, notes_removed: false }])
             .select();
 
         if (error) {
@@ -97,6 +128,26 @@ async function saveNotes() {
         }, 1500);
     } catch (err) {
         console.error("Error saving note:", err);
+    }
+}
+
+async function deleteNote(noteId, index) {
+    try {
+        const { error } = await supabaseClient
+            .from('notes')
+            .update({ notes_removed: true })
+            .eq('id', noteId);
+
+        if (error) {
+            console.error("Failed to delete note:", error);
+            alert(`Failed to delete note: ${error.message}`);
+            return;
+        }
+
+        notes.splice(index, 1);
+        displayNotes();
+    } catch (err) {
+        console.error("Error deleting note:", err);
     }
 }
 
@@ -177,6 +228,7 @@ notepadIcon.addEventListener('click', () => {
     } else {
         notepadSidebar.classList.remove('hidden');
         notepadOpen = true;
+        newNoteInput.focus();
     }
 });
 
@@ -186,6 +238,13 @@ closeNotepad.addEventListener('click', () => {
 });
 
 saveNotesBtn.addEventListener('click', saveNotes);
+
+// Allow Enter key to save note
+newNoteInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        saveNotes();
+    }
+});
 
 // Tab Switching
 tabs.forEach(tab => {
