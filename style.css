@@ -593,11 +593,14 @@ textarea {
     align-items: center;
     justify-content: center;
     position: relative;
+    overflow: auto;
 }
 
 .video-modal-content video {
-    max-width: 90%;
-    max-height: 80vh;
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
     object-fit: contain;
     border-radius: 8px;
 }
