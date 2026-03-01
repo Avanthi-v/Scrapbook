@@ -1,3 +1,25 @@
+// Small auth guard: if the page contains the memories grid, require a signed-in user
+function _checkAuthForMemories() {
+    function guard() {
+        const memoryGridEl = document.getElementById('memory-grid');
+        if (memoryGridEl) {
+            const user = sessionStorage.getItem('scrapbook_user');
+            if (!user) {
+                // Not signed in — send to sign-in page
+                window.location.replace('index.html');
+            }
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', guard);
+    } else {
+        guard();
+    }
+}
+
+_checkAuthForMemories();
+
 // Initialize Icons (Wrapped to ensure load)
 document.addEventListener('DOMContentLoaded', () => {
     try {
@@ -5,11 +27,35 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {
         console.error("Lucide Error", e);
     }
+    // Wire sign-out button if present
+    try {
+        const signoutBtn = document.getElementById('signout-btn');
+        if (signoutBtn) {
+            signoutBtn.addEventListener('click', () => {
+                sessionStorage.removeItem('scrapbook_user');
+                // optional: clear all session storage
+                // sessionStorage.clear();
+                window.location.href = 'index.html';
+            });
+        }
+    } catch (err) {
+        console.error('Signout wiring failed:', err);
+    }
+    
+    // Initialize voice recording support check
+    try {
+        if (!isVoiceRecordingSupported && voiceDisabledText) {
+            voiceDisabledText.classList.remove('hidden');
+        }
+    } catch (err) {
+        console.error('Voice recording initialization failed:', err);
+    }
 });
 
 // Supabase Configuration
 const SUPABASE_URL = 'https://axmllmliekjkgtxvglnx.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_VF2mhtEhcH-ylutp2fdJQw_NL-Uu-oK';
+
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // DOM Elements
@@ -28,6 +74,15 @@ const uploadContainer = document.getElementById('upload-input-container');
 const urlContainer = document.getElementById('url-input-container');
 const tabs = document.querySelectorAll('.tab');
 
+// Video Elements
+const videoInput = document.getElementById('video-input');
+const videoDropArea = document.getElementById('video-drop-area');
+const videoLabel = document.getElementById('video-label');
+const videoUploadContainer = document.getElementById('video-upload-container');
+const videoUrlContainer = document.getElementById('video-url-container');
+const videoUrlInput = document.getElementById('video-url-input');
+const videoTabs = document.querySelectorAll('.tab-video');
+
 // Image Modal Elements
 const imageModal = document.getElementById('image-modal');
 const closeImageModal = document.getElementById('close-image-modal');
@@ -40,15 +95,34 @@ const closeNotepad = document.getElementById('close-notepad');
 const notesList = document.getElementById('notes-list');
 const newNoteInput = document.getElementById('new-note-input');
 const saveNotesBtn = document.getElementById('save-notes-btn');
+const recordVoiceBtn = document.getElementById('record-voice-btn');
+const voiceRecordingIndicator = document.getElementById('voice-recording-indicator');
+const recordingTime = document.getElementById('recording-time');
+const voicePlaybackArea = document.getElementById('voice-playback-area');
+const voicePlayback = document.getElementById('voice-playback');
+const useVoiceBtn = document.getElementById('use-voice-btn');
+const discardVoiceBtn = document.getElementById('discard-voice-btn');
+const voiceDisabledText = document.getElementById('voice-disabled-text');
 
 let memories = [];
 let fileToUpload = null;
+let videoFileToUpload = null;
 let notes = [];
 let notepadOpen = false;
 
-// Initial Render
-fetchMemories();
-fetchNotes();
+// Voice Recording Variables
+let mediaRecorder = null;
+let audioChunks = [];
+let recordingStartTime = 0;
+let recordingInterval = null;
+let recordedBlob = null;
+const isVoiceRecordingSupported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+
+// Initial Render — only run on the memories page where the grid exists
+if (memoryGrid) {
+    fetchMemories();
+    fetchNotes();
+}
 
 // --- Notes Functions ---
 async function fetchNotes() {
@@ -85,9 +159,17 @@ function displayNotes() {
         const noteDate = new Date(note.created_at).toLocaleDateString();
         const noteText = `[${noteDate}] ${note.note_message}`;
         
+        let voiceHtml = '';
+        if (note.voice_url) {
+            voiceHtml = `<audio controls style="width: 100%; margin-top: 0.5rem; margin-bottom: 0.5rem;"><source src="${note.voice_url}" type="audio/webm">Your browser does not support audio playback.</audio>`;
+        }
+        
         noteEntry.innerHTML = `
-            ${noteText}
-            <button class="note-delete-btn" title="Delete note">×</button>
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                <div style="flex: 1;">${noteText}</div>
+                <button class="note-delete-btn" title="Delete note">×</button>
+            </div>
+            ${voiceHtml}
         `;
         
         const deleteBtn = noteEntry.querySelector('.note-delete-btn');
@@ -154,17 +236,32 @@ async function deleteNote(noteId, index) {
 // --- Supabase Logic ---
 
 async function fetchMemories() {
-    const { data, error } = await supabaseClient
-        .from('memories')
-        .select('*')
-        .order('created_at', { ascending: false });
+    try {
+        console.log('Debug: supabaseClient exists?', !!supabaseClient, supabaseClient ? { url: SUPABASE_URL } : null);
+        const { data, error, status, statusText } = await supabaseClient
+            .from('memories')
+            .select('*')
+            .order('created_at', { ascending: false });
 
-    if (error) {
-        console.error('Error fetching memories:', error);
-        alert('Could not load memories. Check console.');
-    } else {
-        memories = data;
+        console.log('fetchMemories result:', { status, statusText, error, data });
+
+        if (error) {
+            console.error('Error fetching memories:', error);
+            // Show popup alert like previous behavior
+            alert('Could not load memories. Check console.');
+            return;
+        }
+
+        memories = data || [];
+        // If there are no memories, render the empty state via renderMemories()
+        if (!memories.length) {
+            renderMemories();
+            return;
+        }
         renderMemories();
+    } catch (err) {
+        console.error('Unexpected error fetching memories:', err);
+        alert('Unexpected error loading memories. See console.');
     }
 }
 
@@ -176,6 +273,24 @@ async function uploadImage(file) {
 
     if (error) {
         console.error('Upload error:', error);
+        throw error;
+    }
+
+    const { data: { publicUrl } } = supabaseClient.storage
+        .from('scrapbook-memories')
+        .getPublicUrl(fileName);
+
+    return publicUrl;
+}
+
+async function uploadVideo(file) {
+    const fileName = `video-${Date.now()}-${file.name}`;
+    const { data, error } = await supabaseClient.storage
+        .from('scrapbook-memories')
+        .upload(fileName, file);
+
+    if (error) {
+        console.error('Video upload error:', error);
         throw error;
     }
 
@@ -246,6 +361,155 @@ newNoteInput.addEventListener('keypress', (e) => {
     }
 });
 
+// Voice Recording Functions
+async function startVoiceRecording() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        recordedBlob = null;
+
+        mediaRecorder.addEventListener('dataavailable', (event) => {
+            audioChunks.push(event.data);
+        });
+
+        mediaRecorder.addEventListener('stop', () => {
+            recordedBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            const audioUrl = URL.createObjectURL(recordedBlob);
+            voicePlayback.src = audioUrl;
+            
+            // Show playback area, hide recording indicator
+            voiceRecordingIndicator.classList.add('hidden');
+            voicePlaybackArea.classList.remove('hidden');
+            recordVoiceBtn.textContent = '';
+            recordVoiceBtn.innerHTML = '<i data-lucide="mic"></i>';
+            lucide.createIcons();
+        });
+
+        mediaRecorder.start();
+        voiceRecordingIndicator.classList.remove('hidden');
+        voicePlaybackArea.classList.add('hidden');
+        recordVoiceBtn.textContent = '';
+        recordVoiceBtn.innerHTML = '<i data-lucide="square"></i>';
+        lucide.createIcons();
+
+        recordingStartTime = Date.now();
+        recordingInterval = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+            const minutes = Math.floor(elapsed / 60);
+            const seconds = elapsed % 60;
+            recordingTime.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }, 100);
+    } catch (err) {
+        console.error('Microphone access denied:', err);
+        if (!isVoiceRecordingSupported) {
+            voiceDisabledText.classList.remove('hidden');
+        }
+    }
+}
+
+function stopVoiceRecording() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        clearInterval(recordingInterval);
+        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+    }
+}
+
+async function saveVoiceNote() {
+    if (!recordedBlob) {
+        alert('No voice recording to save!');
+        return;
+    }
+
+    try {
+        const fileName = `voice-${Date.now()}.webm`;
+        const { data, error } = await supabaseClient.storage
+            .from('scrapbook-memories')
+            .upload(fileName, recordedBlob);
+
+        if (error) {
+            console.error('Voice upload error:', error);
+            alert(`Voice upload failed: ${error.message}`);
+            return;
+        }
+
+        const { data: { publicUrl } } = supabaseClient.storage
+            .from('scrapbook-memories')
+            .getPublicUrl(fileName);
+
+        // Save as a note with voice URL
+        newNoteInput.value = `[Voice Note: ${new Date().toLocaleTimeString()}]`;
+        
+        const { data: insertData, error: insertError } = await supabaseClient
+            .from('notes')
+            .insert([{ note_message: newNoteInput.value, notes_removed: false, voice_url: publicUrl }])
+            .select();
+
+        if (insertError) {
+            console.error("Database Save Failed:", insertError);
+            alert(`Failed to save voice note: ${insertError.message}`);
+            return;
+        }
+
+        notes.unshift(insertData[0]);
+        displayNotes();
+        
+        // Reset voice recording UI
+        newNoteInput.value = '';
+        voicePlayback.src = '';
+        recordedBlob = null;
+        voicePlaybackArea.classList.add('hidden');
+        voiceRecordingIndicator.classList.add('hidden');
+        recordVoiceBtn.textContent = '';
+        recordVoiceBtn.innerHTML = '<i data-lucide="mic"></i>';
+        lucide.createIcons();
+
+        useVoiceBtn.textContent = 'Voice Saved!';
+        setTimeout(() => {
+            useVoiceBtn.textContent = 'Use Voice Note';
+        }, 1500);
+    } catch (err) {
+        console.error("Error saving voice note:", err);
+        alert(`Error: ${err.message}`);
+    }
+}
+
+function discardVoiceRecording() {
+    recordedBlob = null;
+    voicePlayback.src = '';
+    voicePlaybackArea.classList.add('hidden');
+    voiceRecordingIndicator.classList.add('hidden');
+    recordVoiceBtn.textContent = '';
+    recordVoiceBtn.innerHTML = '<i data-lucide="mic"></i>';
+    lucide.createIcons();
+}
+
+// Voice Recording Event Listeners
+recordVoiceBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (!isVoiceRecordingSupported) {
+        voiceDisabledText.classList.remove('hidden');
+        return;
+    }
+
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        stopVoiceRecording();
+    } else {
+        startVoiceRecording();
+    }
+});
+
+useVoiceBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    saveVoiceNote();
+});
+
+discardVoiceBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    discardVoiceRecording();
+});
+
 // Tab Switching
 tabs.forEach(tab => {
     tab.addEventListener('click', () => {
@@ -258,6 +522,55 @@ tabs.forEach(tab => {
         } else {
             uploadContainer.classList.add('hidden');
             urlContainer.classList.remove('hidden');
+        }
+    });
+});
+
+// Video Tab Switching
+videoTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+        videoTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+
+        if (tab.dataset.mode === 'video-upload') {
+            videoUploadContainer.classList.remove('hidden');
+            videoUrlContainer.classList.add('hidden');
+        } else {
+            videoUploadContainer.classList.add('hidden');
+            videoUrlContainer.classList.remove('hidden');
+        }
+    });
+});
+
+// Media Type Selector (None, Image, Video)
+const mediaTabs = document.querySelectorAll('.tab-media');
+const imageSection = document.getElementById('image-section');
+const videoSection = document.getElementById('video-section');
+let selectedMediaType = 'none';
+
+mediaTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+        mediaTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        selectedMediaType = tab.dataset.mode;
+
+        if (tab.dataset.mode === 'image') {
+            imageSection.classList.remove('hidden');
+            videoSection.classList.add('hidden');
+            fileToUpload = null;
+            fileLabel.textContent = "Click to Upload Photo";
+            fileLabel.style.color = "#666";
+        } else if (tab.dataset.mode === 'video') {
+            imageSection.classList.add('hidden');
+            videoSection.classList.remove('hidden');
+            videoFileToUpload = null;
+            videoLabel.textContent = "Click to Upload Video";
+            videoLabel.style.color = "#666";
+        } else {
+            imageSection.classList.add('hidden');
+            videoSection.classList.add('hidden');
+            fileToUpload = null;
+            videoFileToUpload = null;
         }
     });
 });
@@ -275,6 +588,19 @@ fileInput.addEventListener('change', (e) => {
     }
 });
 
+// Video Upload Logic
+videoDropArea.addEventListener('click', () => videoInput.click());
+
+videoInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        videoFileToUpload = file;
+        videoLabel.textContent = "Selected: " + file.name;
+        videoLabel.style.color = "green";
+        videoLabel.style.fontWeight = "bold";
+    }
+});
+
 // Form Submission
 memoryForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -286,29 +612,45 @@ memoryForm.addEventListener('submit', async (e) => {
 
     try {
         let imageUrl = null;
+        let videoUrl = null;
 
-        // 1. Image Upload Phase
-        if (!uploadContainer.classList.contains('hidden') && fileToUpload) {
-            try {
-                imageUrl = await uploadImage(fileToUpload);
-            } catch (uploadErr) {
-                console.error("Upload Failed:", uploadErr);
-                alert(`Image Upload Failed: ${uploadErr.message}. \n\nCheck if your Storage Bucket policy allows uploads or if the bucket exists.`);
-                throw new Error("Aggregated Upload Error"); // Stop execution
+        // Media Upload Phase - only one media type at a time
+        if (selectedMediaType === 'image') {
+            if (!uploadContainer.classList.contains('hidden') && fileToUpload) {
+                try {
+                    imageUrl = await uploadImage(fileToUpload);
+                } catch (uploadErr) {
+                    console.error("Upload Failed:", uploadErr);
+                    alert(`Image Upload Failed: ${uploadErr.message}. \n\nCheck if your Storage Bucket policy allows uploads or if the bucket exists.`);
+                    throw new Error("Aggregated Upload Error");
+                }
+            } else if (urlContainer && !uploadContainer.classList.contains('hidden') === false) {
+                imageUrl = urlInput.value;
             }
-        } else if (urlContainer && !uploadContainer.classList.contains('hidden') === false) {
-            imageUrl = urlInput.value;
+        } else if (selectedMediaType === 'video') {
+            if (!videoUploadContainer.classList.contains('hidden') && videoFileToUpload) {
+                try {
+                    videoUrl = await uploadVideo(videoFileToUpload);
+                } catch (uploadErr) {
+                    console.error("Video Upload Failed:", uploadErr);
+                    alert(`Video Upload Failed: ${uploadErr.message}. \n\nCheck if your Storage Bucket policy allows uploads or if the bucket exists.`);
+                    throw new Error("Aggregated Video Upload Error");
+                }
+            } else if (videoUrlContainer && !videoUploadContainer.classList.contains('hidden') === false) {
+                videoUrl = videoUrlInput.value;
+            }
         }
 
-        if (!captionInput.value && !imageUrl) {
-            alert("Please provide text or an image!");
+        if (!captionInput.value && !imageUrl && !videoUrl) {
+            alert("Please provide text or media!");
             return;
         }
 
-        // 2. Database Insert Phase
+        // Database Insert Phase
         const newMemory = {
             text: captionInput.value,
             image: imageUrl,
+            video: videoUrl,
             memory_date: memoryDateInput.value || null,
             rotation: Math.random() * 10 - 5
         };
@@ -330,7 +672,7 @@ memoryForm.addEventListener('submit', async (e) => {
         modal.classList.add('hidden');
 
     } catch (err) {
-        if (err.message !== "Aggregated Upload Error") {
+        if (err.message !== "Aggregated Upload Error" && err.message !== "Aggregated Video Upload Error") {
             // General catch
         }
     } finally {
@@ -352,9 +694,14 @@ function renderMemories() {
         card.className = 'polaroid mem-card';
         card.style.transform = `rotate(${memory.rotation}deg)`;
 
-        const imgHtml = memory.image
-            ? `<img src="${memory.image}" alt="Memory" class="memory-img" data-image="${memory.image}">`
-            : `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#ccc; font-size:0.8rem;">No Image</div>`;
+        let mediaHtml = '';
+        if (memory.image) {
+            mediaHtml = `<img src="${memory.image}" alt="Memory" class="memory-img" data-image="${memory.image}">`;
+        } else if (memory.video) {
+            mediaHtml = `<video width="100%" height="100%" style="object-fit: cover;" class="memory-video" data-video="${memory.video}"><source src="${memory.video}" type="video/mp4"><source src="${memory.video}" type="video/webm">Your browser does not support video playback.</video>`;
+        } else {
+            mediaHtml = `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#ccc; font-size:0.8rem;">No Media</div>`;
+        }
 
         const dateHtml = memory.memory_date 
             ? `<div class="memory-date">${new Date(memory.memory_date).toLocaleDateString()} -</div>`
@@ -362,7 +709,7 @@ function renderMemories() {
 
         card.innerHTML = `
             <div class="photo-frame">
-                ${imgHtml}
+                ${mediaHtml}
             </div>
             <div class="memory-content">
                 ${dateHtml}
@@ -372,7 +719,7 @@ function renderMemories() {
 
         memoryGrid.appendChild(card);
 
-        // Add click event to images for modal view
+        // Add click event to images and videos for modal view
         if (memory.image) {
             const img = card.querySelector('.memory-img');
             img.addEventListener('click', (e) => {
@@ -395,4 +742,19 @@ function resetForm() {
     fileLabel.textContent = "Click to Upload Photo";
     fileLabel.style.color = "#666";
     fileLabel.style.fontWeight = "normal";
+    
+    // Reset video fields
+    videoUrlInput.value = '';
+    videoInput.value = '';
+    videoFileToUpload = null;
+    videoLabel.textContent = "Click to Upload Video";
+    videoLabel.style.color = "#666";
+    videoLabel.style.fontWeight = "normal";
+    
+    // Reset media type selector
+    selectedMediaType = 'none';
+    mediaTabs.forEach(t => t.classList.remove('active'));
+    mediaTabs[0].classList.add('active'); // "None" tab
+    imageSection.classList.add('hidden');
+    videoSection.classList.add('hidden');
 }

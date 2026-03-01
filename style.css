@@ -312,7 +312,15 @@ header {
     gap: 0.5rem;
     font-weight: bold;
     color: var(--brown-text);
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.75rem;
+    font-size: 1rem;
+}
+
+.form-group label svg {
+    width: 20px;
+    height: 20px;
+    color: var(--tape-teal);
+    opacity: 0.8;
 }
 
 textarea,
@@ -333,42 +341,158 @@ textarea {
 .tab-group {
     display: flex;
     gap: 0.5rem;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.75rem;
+    background: rgba(78, 205, 196, 0.05);
+    padding: 0.25rem;
+    border-radius: 6px;
 }
 
 .tab {
     flex: 1;
-    padding: 0.25rem;
+    padding: 0.5rem 0.75rem;
     font-family: var(--font-hand);
     font-weight: bold;
     cursor: pointer;
-    background: #eee;
+    background: transparent;
     border: none;
     border-radius: 4px;
+    color: var(--brown-text);
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+}
+
+.tab:hover {
+    background: rgba(78, 205, 196, 0.1);
 }
 
 .tab.active {
-    background: var(--brown-text);
+    background: var(--tape-teal);
     color: white;
+    box-shadow: 0 2px 6px rgba(78, 205, 196, 0.3);
+}
+
+.tab-media,
+.tab-video {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    font-family: var(--font-hand);
+    font-weight: bold;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--brown-text);
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+}
+
+.tab-media:hover,
+.tab-video:hover {
+    background: rgba(78, 205, 196, 0.1);
+}
+
+.tab-media.active,
+.tab-video.active {
+    background: var(--tape-teal);
+    color: white;
+    box-shadow: 0 2px 6px rgba(78, 205, 196, 0.3);
 }
 
 .file-drop-area {
-    border: 2px dashed #999;
-    background: rgba(255, 255, 255, 0.4);
-    padding: 1rem;
+    border: 2px dashed var(--tape-teal);
+    background: linear-gradient(135deg, rgba(78, 205, 196, 0.08) 0%, rgba(78, 205, 196, 0.04) 100%);
+    padding: 2rem 1rem;
     text-align: center;
     cursor: pointer;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.5rem;
-    color: #666;
-    border-radius: 4px;
+    gap: 0.75rem;
+    color: var(--brown-text);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    background-color: #fafaf8;
 }
 
 .file-drop-area:hover {
-    background: rgba(255, 255, 255, 0.8);
-    border-color: var(--brown-text);
+    background: linear-gradient(135deg, rgba(78, 205, 196, 0.15) 0%, rgba(78, 205, 196, 0.1) 100%);
+    border-color: var(--tape-teal);
+    box-shadow: 0 4px 12px rgba(78, 205, 196, 0.15);
+    transform: translateY(-2px);
+}
+
+.file-drop-area svg {
+    width: 36px;
+    height: 36px;
+    color: var(--tape-teal);
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+}
+
+.file-drop-area:hover svg {
+    opacity: 1;
+}
+
+#file-drop-area,
+#video-drop-area {
+    border: 2px dashed var(--tape-teal);
+    background: linear-gradient(135deg, rgba(78, 205, 196, 0.08) 0%, rgba(78, 205, 196, 0.04) 100%);
+    padding: 2rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--brown-text);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    background-color: #fafaf8;
+}
+
+#file-drop-area:hover,
+#video-drop-area:hover {
+    background: linear-gradient(135deg, rgba(78, 205, 196, 0.15) 0%, rgba(78, 205, 196, 0.1) 100%);
+    border-color: var(--tape-teal);
+    box-shadow: 0 4px 12px rgba(78, 205, 196, 0.15);
+    transform: translateY(-2px);
+}
+
+#file-drop-area svg,
+#video-drop-area svg {
+    width: 36px;
+    height: 36px;
+    color: var(--tape-teal);
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+}
+
+#file-drop-area:hover svg,
+#video-drop-area:hover svg {
+    opacity: 1;
+}
+
+.input-container {
+    margin: 0.5rem 0;
+}
+
+.input-container.hidden {
+    display: none;
+}
+
+.input-container input[type="text"] {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid var(--tape-teal);
+    background: linear-gradient(135deg, rgba(78, 205, 196, 0.08) 0%, rgba(78, 205, 196, 0.04) 100%);
+    transition: all 0.3s ease;
+}
+
+.input-container input[type="text"]:focus {
+    outline: none;
+    border-color: var(--tape-teal);
+    box-shadow: 0 0 8px rgba(78, 205, 196, 0.3);
+    background: rgba(255, 255, 255, 0.9);
 }
 
 .submit-btn {
@@ -547,7 +671,8 @@ textarea {
 
 .notepad-sidebar .notepad-input-area {
     display: flex;
-    gap: 0.5rem;
+    flex-direction: column;
+    gap: 0;
     padding: 0.75rem;
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
     border-top: 2px solid #e6e0a8;
@@ -572,10 +697,11 @@ textarea {
 }
 
 .notepad-sidebar .notepad-input-area .save-notes-btn {
-    width: auto;
-    flex: 0.3;
+    width: 100%;
+    flex: 1;
     font-size: 0.85rem;
     padding: 0.5rem 0.75rem;
+    margin-top: 0.5rem;
 }
 
 /* Notepad Icon - Fixed at Bottom Right */
@@ -639,4 +765,118 @@ textarea {
         bottom: 1rem;
         right: 1rem;
     }
+}
+/* Voice Recording Styles */
+.voice-record-btn {
+    padding: 0.5rem 0.6rem;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: var(--shadow-sm);
+}
+
+.voice-record-btn:hover {
+    background: #f5f5f5;
+    border-color: #ccc;
+}
+
+.voice-record-btn svg {
+    width: 20px;
+    height: 20px;
+    color: #666;
+}
+
+.voice-recording-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background: #ffebee;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    color: #c62828;
+    margin-bottom: 0.5rem;
+}
+
+.voice-recording-indicator.hidden {
+    display: none;
+}
+
+.recording-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: #c62828;
+    border-radius: 50%;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.voice-playback-area {
+    margin-bottom: 0.5rem;
+}
+
+.voice-playback-area.hidden {
+    display: none;
+}
+
+.voice-playback-area audio {
+    width: 100%;
+    margin-bottom: 0.5rem;
+    height: 30px;
+}
+
+.discard-voice-btn {
+    background: #ffcdd2;
+    color: #c62828;
+    border: 1px solid #ef9a9a;
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+}
+
+.discard-voice-btn:hover {
+    background: #ffb3ba;
+    border-color: #e57373;
+}
+
+.voice-disabled-text.hidden {
+    display: none;
+}
+
+/* Video styles for memory cards */
+.memory-video {
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 4px;
+}
+
+.memory-video:hover {
+    opacity: 0.9;
+}
+
+/* Media Section Styles */
+.media-section {
+    padding: 0.5rem 0;
+}
+
+.media-section.hidden {
+    display: none;
 }

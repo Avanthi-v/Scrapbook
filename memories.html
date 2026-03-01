@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Scrapbook</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Sign out button (fixed top-left) -->
+        <button id="signout-btn" title="Sign Out" style="position:fixed; top:1rem; left:1rem; z-index:9999; background:#fff; border:1px solid #e6e6e6; border-radius:6px; padding:0.4rem 0.5rem; box-shadow: 2px 2px 6px rgba(0,0,0,0.08); cursor:pointer;">
+            <i data-lucide="power"></i>
+        </button>
+        <header>
+            <h1 class="title">My Scrapbook</h1>
+            <div class="tape-decor"></div>
+            <p class="subtitle">Collecting moments, one sticker at a time.</p>
+        </header>
+
+        <main id="memory-grid">
+            <!-- Add Button Card -->
+            <div id="add-card" class="polaroid add-card">
+                <div class="photo-frame dashed">
+                    <i data-lucide="camera" class="camera-icon"></i>
+                    <span class="add-text">Add New<br>Memory</span>
+                </div>
+                <div class="pin"></div>
+            </div>
+
+            <!-- Memories will be injected here -->
+        </main>
+
+        <!-- Image Modal for Large View -->
+        <div id="image-modal" class="modal hidden">
+            <div class="image-modal-content">
+                <button id="close-image-modal" class="close-btn"><i data-lucide="x"></i></button>
+                <img id="modal-image" src="" alt="Large view">
+            </div>
+        </div>
+
+        <!-- Memory Form Modal -->
+        <div id="modal" class="modal hidden">
+            <div class="modal-content sticker">
+                <button id="close-modal" class="close-btn"><i data-lucide="x"></i></button>
+                <h2>New Memory</h2>
+                <div class="tape-top"></div>
+
+                <form id="memory-form">
+                    <div class="form-group">
+                        <label><i data-lucide="type"></i> Caption</label>
+                        <textarea id="caption" placeholder="Write something memorable..." required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label><i data-lucide="calendar"></i> Date (Optional)</label>
+                        <input type="date" id="memory-date">
+                    </div>
+
+                    <div class="form-group">
+                        <label><i data-lucide="image"></i> Media (Optional)</label>
+                        <div class="tab-group">
+                            <button type="button" class="tab-media active" data-mode="none">None</button>
+                            <button type="button" class="tab-media" data-mode="image">Image</button>
+                            <button type="button" class="tab-media" data-mode="video">Video</button>
+                        </div>
+
+                        <!-- Image Upload/URL Options -->
+                        <div id="image-section" class="media-section hidden">
+                            <div class="tab-group">
+                                <button type="button" class="tab active" data-mode="upload">Upload File</button>
+                                <button type="button" class="tab" data-mode="url">Image URL</button>
+                            </div>
+
+                            <div id="upload-input-container" class="input-container">
+                                <div class="file-drop-area" id="file-drop-area">
+                                    <i data-lucide="upload"></i>
+                                    <span id="file-label">Click to Upload Photo</span>
+                                    <input type="file" id="file-input" accept="image/*" hidden>
+                                </div>
+                            </div>
+
+                            <div id="url-input-container" class="input-container hidden">
+                                <input type="text" id="url-input" placeholder="https://example.com/photo.jpg">
+                            </div>
+                        </div>
+
+                        <!-- Video Upload/URL Options -->
+                        <div id="video-section" class="media-section hidden">
+                            <div class="tab-group">
+                                <button type="button" class="tab-video active" data-mode="video-upload">Upload File</button>
+                                <button type="button" class="tab-video" data-mode="video-url">Video URL</button>
+                            </div>
+
+                            <div id="video-upload-container" class="input-container">
+                                <div class="file-drop-area" id="video-drop-area">
+                                    <i data-lucide="upload"></i>
+                                    <span id="video-label">Click to Upload Video</span>
+                                    <input type="file" id="video-input" accept="video/*" hidden>
+                                </div>
+                            </div>
+
+                            <div id="video-url-container" class="input-container hidden">
+                                <input type="text" id="video-url-input" placeholder="https://example.com/video.mp4">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="submit-btn">Stick it!</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Notepad Sidebar -->
+        <div id="notepad-sidebar" class="notepad-sidebar hidden">
+            <div class="notepad-sidebar-header">
+                <h2>Notes</h2>
+                <button id="close-notepad" class="close-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div id="notes-list" class="notes-list">
+                <!-- Notes will be injected here -->
+            </div>
+            <div class="notepad-input-area">
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                    <input type="text" id="new-note-input" placeholder="Add a new entry..." style="flex: 1;">
+                    <button id="record-voice-btn" class="voice-record-btn" title="Record voice note">
+                        <i data-lucide="mic"></i>
+                    </button>
+                </div>
+                <div id="voice-recording-indicator" class="voice-recording-indicator hidden">
+                    <span class="recording-dot"></span>
+                    <span id="recording-time">00:00</span>
+                </div>
+                <div id="voice-playback-area" class="voice-playback-area hidden">
+                    <audio id="voice-playback" controls style="width: 100%; margin-bottom: 0.5rem;"></audio>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button id="use-voice-btn" class="save-notes-btn" style="flex: 1;">Use Voice Note</button>
+                        <button id="discard-voice-btn" class="discard-voice-btn" style="flex: 1;">Discard</button>
+                    </div>
+                </div>
+                <div id="voice-disabled-text" class="voice-disabled-text hidden" style="text-align: center; color: #999; font-size: 0.85rem; padding: 0.5rem;">
+                    Voice recording not supported in your browser
+                </div>
+                <button id="save-notes-btn" class="save-notes-btn">Add Note</button>
+            </div>
+        </div>
+
+        <!-- Notepad Icon (Fixed at bottom-right) -->
+        <div id="notepad-icon" class="notepad-icon">
+            <i data-lucide="pencil"></i>
+        </div>
+    </div>
+    <script src="script.js?v=2"></script>
+</body>
+
+</html>
