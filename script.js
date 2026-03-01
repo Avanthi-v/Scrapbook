@@ -88,6 +88,12 @@ const imageModal = document.getElementById('image-modal');
 const closeImageModal = document.getElementById('close-image-modal');
 const modalImage = document.getElementById('modal-image');
 
+// Video Modal Elements
+const videoModal = document.getElementById('video-modal');
+const closeVideoModal = document.getElementById('close-video-modal');
+const modalVideo = document.getElementById('modal-video');
+const modalVideoSource = document.getElementById('modal-video-source');
+
 // Notepad Elements
 const notepadIcon = document.getElementById('notepad-icon');
 const notepadSidebar = document.getElementById('notepad-sidebar');
@@ -332,6 +338,19 @@ closeImageModal.addEventListener('click', () => {
 imageModal.addEventListener('click', (e) => {
     if (e.target === imageModal) {
         imageModal.classList.add('hidden');
+    }
+});
+
+// Video Modal Events
+closeVideoModal.addEventListener('click', () => {
+    videoModal.classList.add('hidden');
+    modalVideo.pause();
+});
+
+videoModal.addEventListener('click', (e) => {
+    if (e.target === videoModal) {
+        videoModal.classList.add('hidden');
+        modalVideo.pause();
     }
 });
 
@@ -726,6 +745,17 @@ function renderMemories() {
                 e.stopPropagation();
                 modalImage.src = memory.image;
                 imageModal.classList.remove('hidden');
+            });
+        }
+
+        if (memory.video) {
+            const video = card.querySelector('.memory-video');
+            video.addEventListener('click', (e) => {
+                e.stopPropagation();
+                modalVideoSource.src = memory.video;
+                modalVideo.load();
+                videoModal.classList.remove('hidden');
+                modalVideo.play();
             });
         }
     });
