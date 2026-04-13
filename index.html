@@ -3,30 +3,30 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Sign In — Scrapbook</title>
+    <title>Scrapbook Access</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container" style="max-width:480px; margin:4rem auto; text-align:center;">
         <header>
             <h1 class="title" style="transform: none; display:block;">Welcome Ghost <span style="font-size:0.9em">👻</span></h1>
-            <p class="subtitle">Please sign in to see your memories</p>
+            <p class="subtitle">Enter your secret code to view memories</p>
         </header>
 
         <main>
             <form id="login-form" style="margin-top:2rem; background:white; padding:1.5rem; border-radius:8px; box-shadow:var(--shadow-sm);">
                 <div style="text-align:left; margin-bottom:0.75rem;">
-                    <label for="username">Username</label>
-                    <input id="username" name="username" type="text" placeholder="Enter username" required>
+                    <label for="username">Name</label>
+                    <input id="username" name="username" type="text" placeholder="Who are you?" required>
                 </div>
                 <div style="text-align:left; margin-bottom:0.75rem;">
-                    <label for="password">Password</label>
-                    <input id="password" name="password" type="password" placeholder="Password" required>
+                    <label for="password">Secret Code</label>
+                    <input id="password" name="password" type="password" placeholder="Your secret code" required>
                 </div>
 
                 <div id="login-msg" style="color:#b00020; min-height:1.2rem; text-align:center; margin-bottom:0.5rem;"></div>
 
-                <button type="submit" class="submit-btn" style="padding:0.6rem 1rem;">Sign In</button>
+                <button type="submit" class="submit-btn" style="padding:0.6rem 1rem;">Open Scrapbook</button>
             </form>
 
         </main>
