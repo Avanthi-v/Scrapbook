@@ -218,7 +218,27 @@ async function saveNotes() {
         console.error("Error saving note:", err);
     }
 }
+// Auto-expand textarea as user types
+function autoExpandTextarea(textarea) {
+    textarea.style.height = 'auto';
+    const maxHeight = textarea.id === 'new-note-input' ? 70 : 400;
+    const newHeight = Math.min(textarea.scrollHeight, maxHeight);
+    textarea.style.height = newHeight + 'px';
+}
 
+// Attach textarea auto-expand listener
+if (captionInput) {
+    captionInput.addEventListener('input', function() {
+        autoExpandTextarea(this);
+    });
+}
+
+// Attach auto-expand to notepad textarea
+if (newNoteInput) {
+    newNoteInput.addEventListener('input', function() {
+        autoExpandTextarea(this);
+    });
+}
 async function deleteNote(noteId, index) {
     try {
         const { error } = await supabaseClient
@@ -373,9 +393,9 @@ closeNotepad.addEventListener('click', () => {
 
 saveNotesBtn.addEventListener('click', saveNotes);
 
-// Allow Enter key to save note
+// Allow Ctrl+Enter to save note
 newNoteInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && e.ctrlKey) {
         saveNotes();
     }
 });
@@ -383,7 +403,31 @@ newNoteInput.addEventListener('keypress', (e) => {
 // Voice Recording Functions
 async function startVoiceRecording() {
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        let stream = null;
+        
+        // Try to get audio stream with multiple constraint options
+        const audioConstraints = [
+            { audio: true },  // Default constraints
+            { audio: { echoCancellation: false } },  // Disable echo cancellation if default fails
+            { audio: { echoCancellation: false, noiseSuppression: false } },  // Disable noise suppression
+            { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }  // Disable all audio processing
+        ];
+        
+        for (const constraints of audioConstraints) {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                console.log('Audio access granted with constraints:', constraints);
+                break;  // Success, exit the loop
+            } catch (err) {
+                console.warn('Failed with constraints:', constraints, err);
+                // Continue to next constraint option
+            }
+        }
+        
+        if (!stream) {
+            throw new Error('Unable to access microphone with any available constraints. Please check your device permissions and try a different audio input device.');
+        }
+        
         mediaRecorder = new MediaRecorder(stream);
         audioChunks = [];
         recordedBlob = null;
@@ -787,4 +831,10 @@ function resetForm() {
     mediaTabs[0].classList.add('active'); // "None" tab
     imageSection.classList.add('hidden');
     videoSection.classList.add('hidden');
+    
+    // Initialize textarea height to show 3 lines
+    if (captionInput) {
+        captionInput.style.height = 'auto';
+        captionInput.focus();
+    }
 }

@@ -268,7 +268,7 @@ header {
     background: rgba(0, 0, 0, 0.5);
     z-index: 100;
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: center;
     padding: 1rem;
 }
@@ -282,6 +282,9 @@ header {
     position: relative;
     transform: rotate(1deg);
     border-radius: 2px;
+    display: flex;
+    flex-direction: column;
+    max-height: 80vh;
 }
 
 .tape-top {
@@ -346,8 +349,14 @@ input[type="password"]:focus {
 }
 
 textarea {
-    height: 80px;
+    min-height: 40px;
+    max-height: 400px;
     resize: none;
+    overflow-y: auto;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+   /* white-space: pre-wrap; */
+    line-height: 1.5;
 }
 
 .tab-group {
@@ -723,16 +732,31 @@ textarea {
     flex-shrink: 0;
 }
 
+.notepad-sidebar .notepad-input-area textarea,
 .notepad-sidebar .notepad-input-area input {
     flex: 1;
     font-family: var(--font-hand);
-    padding: 0.5rem;
+    padding: 0.25rem 0.5rem;
     border: 1px solid #ccc;
     border-radius: 4px;
     background: rgba(255, 255, 255, 0.9);
     font-size: 0.95rem;
+    min-height: 20px;
+    max-height: 75px;
+    resize: none;
+    overflow-y: auto;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    line-height: 1.5;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
 }
 
+.notepad-sidebar .notepad-input-area textarea::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, and Opera */
+}
+
+.notepad-sidebar .notepad-input-area textarea:focus,
 .notepad-sidebar .notepad-input-area input:focus {
     outline: none;
     border-color: var(--tape-teal);
