@@ -1,51 +1,62 @@
 // login.js
-// Hashed credentials (SHA-256): secure against casual inspection.
-// Note: While better than plain text, client-side auth is never fully secure.
-// Consider enabling Netlify Identity for robust protection.
-const CREDENTIAL_HASHES = {
-    // format: username: sha256_hash_of_password
-    "ghost": "bf0c97708b849de696e7373508b13c5ea92bafa972fc941d694443e494a4b84d",
-    "Chichu": "88ca9cb6e716aa241b2e1750a6837d060bdecbe95ab4af114446725e12a46841",
-    "Krishna": "a2b99b91650e3ebd173c62362887ac33d05ff780230dcaa677d9f4e97fa86ae1"
+// This app now uses Supabase Auth for sign in.
+// Create matching Supabase users for the usernames below and use the same passwords.
+const SUPABASE_URL = 'https://axmllmliekjkgtxvglnx.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_VF2mhtEhcH-ylutp2fdJQw_NL-Uu-oK';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const USER_EMAIL_MAP = {
+    ghost: 'ghost@example.com',
+    Chichu: 'chichu@example.com',
+    Krishna: 'krishna@example.com'
 };
 
-async function sha256(message) {
-    const msgBuffer = new TextEncoder().encode(message);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
+const ADMIN_USERNAMES = new Set(['ghost']);
 
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('login-form');
     const userInput = document.getElementById('username');
-    const passInput = document.getElementById('password'); // Kept ID for compatibility with HTML update later
+    const passInput = document.getElementById('password');
     const msg = document.getElementById('login-msg');
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const u = (userInput.value || '').trim();
-        const p = passInput.value || '';
+        const username = (userInput.value || '').trim();
+        const password = passInput.value || '';
 
-        if (!u) {
+        if (!username) {
             msg.textContent = 'Enter a username';
             return;
         }
 
-        if (!Object.prototype.hasOwnProperty.call(CREDENTIAL_HASHES, u)) {
+        const email = USER_EMAIL_MAP[username];
+        if (!email) {
             msg.textContent = 'Invalid username';
             return;
         }
 
-        const inputHash = await sha256(p);
-
-        if (CREDENTIAL_HASHES[u] !== inputHash) {
-            msg.textContent = 'Incorrect access code';
+        if (!password) {
+            msg.textContent = 'Enter a password';
             return;
         }
 
-        // Success: store session and go to memories page
-        sessionStorage.setItem('scrapbook_user', u);
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+            email,
+            password
+        });
+
+        if (error) {
+            msg.textContent = error.message || 'Sign in failed';
+            return;
+        }
+
+        if (!data?.session) {
+            msg.textContent = 'Sign in failed';
+            return;
+        }
+
+        sessionStorage.setItem('scrapbook_user', username);
+        sessionStorage.setItem('scrapbook_is_admin', ADMIN_USERNAMES.has(username) ? 'true' : 'false');
         window.location.href = 'memories.html';
     });
 });

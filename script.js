@@ -1,24 +1,67 @@
-// Small auth guard: if the page contains the memories grid, require a signed-in user
-function _checkAuthForMemories() {
-    function guard() {
-        const memoryGridEl = document.getElementById('memory-grid');
-        if (memoryGridEl) {
-            const user = sessionStorage.getItem('scrapbook_user');
-            if (!user) {
-                // Not signed in — send to sign-in page
-                window.location.replace('index.html');
-            }
-        }
+let isAdmin = false;
+
+async function _checkAuthForMemories() {
+    const memoryGridEl = document.getElementById('memory-grid');
+    if (!memoryGridEl) return;
+
+    const { data, error } = await supabaseClient.auth.getSession();
+    if (error) {
+        console.error('Auth session lookup failed:', error);
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', guard);
-    } else {
-        guard();
+    if (!data?.session) {
+        window.location.replace('index.html');
     }
 }
 
 _checkAuthForMemories();
+
+function currentUserIsAdmin() {
+    return isAdmin;
+}
+
+async function fetchAdminStatus() {
+    const { data, error } = await supabaseClient.auth.getSession();
+    if (error) {
+        console.error('Supabase auth session error:', error);
+        return false;
+    }
+
+    const user = data?.session?.user;
+    if (!user) return false;
+
+    const knownAdminEmails = new Set(['ghost@example.com']);
+    if (knownAdminEmails.has(user.email)) {
+        return true;
+    }
+
+    const { data: profile, error: profileError } = await supabaseClient
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', user.id)
+        .single();
+
+    if (profileError) {
+        console.warn('Could not load admin profile:', profileError.message);
+        return false;
+    }
+
+    return profile?.is_admin === true;
+}
+
+async function initPage() {
+    await _checkAuthForMemories();
+    isAdmin = await fetchAdminStatus();
+    fetchMemories();
+    fetchNotes();
+
+    // Start realtime subscription to keep the UI in sync across users
+    try {
+        subscribeToMemories();
+    } catch (e) {
+        console.warn('Could not start realtime subscription for memories:', e);
+    }
+}
 
 // Initialize Icons (Wrapped to ensure load)
 document.addEventListener('DOMContentLoaded', () => {
@@ -31,10 +74,9 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
         const signoutBtn = document.getElementById('signout-btn');
         if (signoutBtn) {
-            signoutBtn.addEventListener('click', () => {
-                sessionStorage.removeItem('scrapbook_user');
-                // optional: clear all session storage
-                // sessionStorage.clear();
+            signoutBtn.addEventListener('click', async () => {
+                await supabaseClient.auth.signOut();
+                sessionStorage.clear();
                 window.location.href = 'index.html';
             });
         }
@@ -126,8 +168,7 @@ const isVoiceRecordingSupported = !!(navigator.mediaDevices && navigator.mediaDe
 
 // Initial Render — only run on the memories page where the grid exists
 if (memoryGrid) {
-    fetchMemories();
-    fetchNotes();
+    initPage();
 }
 
 // --- Notes Functions ---
@@ -135,7 +176,7 @@ async function fetchNotes() {
     const { data, error } = await supabaseClient
         .from('notes')
         .select('*')
-        .or('notes_removed.is.null,notes_removed.eq.false')
+        .not('notes_removed', 'eq', true)
         .order('created_at', { ascending: false });
 
     if (error) {
@@ -164,6 +205,8 @@ function displayNotes() {
         
         const noteDate = new Date(note.created_at).toLocaleDateString();
         const noteText = `[${noteDate}] ${note.note_message}`;
+        const canDeleteNotes = currentUserIsAdmin();
+        const deleteButtonHtml = canDeleteNotes ? '<button class="note-delete-btn" title="Delete note">×</button>' : '';
         
         let voiceHtml = '';
         if (note.voice_url) {
@@ -173,16 +216,18 @@ function displayNotes() {
         noteEntry.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
                 <div style="flex: 1;">${noteText}</div>
-                <button class="note-delete-btn" title="Delete note">×</button>
+                ${deleteButtonHtml}
             </div>
             ${voiceHtml}
         `;
         
-        const deleteBtn = noteEntry.querySelector('.note-delete-btn');
-        deleteBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            deleteNote(note.id, index);
-        });
+        if (canDeleteNotes) {
+            const deleteBtn = noteEntry.querySelector('.note-delete-btn');
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                deleteNote(note.id, index);
+            });
+        }
         
         notesList.appendChild(noteEntry);
     });
@@ -240,11 +285,32 @@ if (newNoteInput) {
     });
 }
 async function deleteNote(noteId, index) {
+    if (!currentUserIsAdmin()) {
+        alert('Delete permission only available for authorized users.');
+        return;
+    }
+
     try {
-        const { error } = await supabaseClient
+        console.log('deleteNote called for', { noteId, index, isAdmin: currentUserIsAdmin() });
+
+        // Diagnostic: fetch the row before attempting update to verify it exists
+        try {
+            const { data: beforeData, error: beforeError } = await supabaseClient
+                .from('notes')
+                .select('id, notes_removed')
+                .eq('id', noteId);
+            console.log('Pre-update select for note:', { beforeData, beforeError });
+        } catch (preErr) {
+            console.error('Pre-update select failed:', preErr);
+        }
+
+        const { data, error } = await supabaseClient
             .from('notes')
             .update({ notes_removed: true })
-            .eq('id', noteId);
+            .eq('id', noteId)
+            .select();
+
+        console.log('deleteNote result:', { noteId, data, error });
 
         if (error) {
             console.error("Failed to delete note:", error);
@@ -252,10 +318,154 @@ async function deleteNote(noteId, index) {
             return;
         }
 
+        // Handle different response shapes: some Supabase configs return
+        // an array, others an object, and RLS may cause `data` to be null.
+        if (!data) {
+            console.warn('No updated row returned after note update; attempting explicit SELECT to verify current row state.');
+            try {
+                const { data: selectData, error: selectError } = await supabaseClient
+                    .from('notes')
+                    .select('id, notes_removed')
+                    .eq('id', noteId);
+
+                console.log('Post-update select check:', { selectData, selectError });
+
+                if (selectError) {
+                    console.error('Select after update failed:', selectError);
+                } else if (selectData && selectData.length > 0) {
+                    console.log('Row after attempted update:', selectData[0]);
+                    if (selectData[0].notes_removed) {
+                        // The row was updated but update response omitted data (likely RLS). Remove locally.
+                        notes.splice(index, 1);
+                        displayNotes();
+                        return;
+                    }
+                }
+            } catch (selErr) {
+                console.error('Error during post-update select check:', selErr);
+            }
+
+            console.warn('Falling back to refetching notes to sync UI. Check Supabase RLS/Row-Level policies if this repeats.');
+            await fetchNotes();
+            return;
+        }
+
+        let updatedRow = null;
+        if (Array.isArray(data)) {
+            if (data.length === 0) {
+                console.warn('Update returned empty array; attempting explicit SELECT to inspect row state.');
+                try {
+                    const { data: selectData, error: selectError } = await supabaseClient
+                        .from('notes')
+                        .select('id, notes_removed')
+                        .eq('id', noteId);
+                    console.log('Explicit select after empty update response:', { selectData, selectError });
+
+                    if (selectError) {
+                        console.error('Select after empty update response failed:', selectError);
+                    } else if (selectData && selectData.length > 0 && selectData[0].notes_removed) {
+                        notes.splice(index, 1);
+                        displayNotes();
+                        return;
+                    }
+                } catch (selErr) {
+                    console.error('Error during explicit select after empty update response:', selErr);
+                }
+
+                console.warn('Falling back to refetching notes after empty update response.');
+                await fetchNotes();
+                return;
+            }
+            if (data.length > 1) {
+                console.warn('Update returned multiple rows for id', noteId, data);
+            }
+            updatedRow = data[0];
+        } else if (typeof data === 'object') {
+            updatedRow = data;
+        }
+
+        if (!updatedRow) {
+            console.warn('Could not determine updated row shape; refetching notes as fallback.');
+            await fetchNotes();
+            return;
+        }
+
         notes.splice(index, 1);
         displayNotes();
     } catch (err) {
         console.error("Error deleting note:", err);
+        alert(`Error deleting note: ${err.message}`);
+    }
+}
+
+async function deleteMemory(memoryId) {
+    if (!currentUserIsAdmin()) {
+        alert('Delete permission only available for authorized users.');
+        return;
+    }
+
+    try {
+        console.log('deleteMemory called for', memoryId);
+
+        // Pre-delete check
+        try {
+            const { data: beforeData, error: beforeError } = await supabaseClient
+                .from('memories')
+                .select('id')
+                .eq('id', memoryId);
+            console.log('Pre-delete select for memory:', { beforeData, beforeError });
+        } catch (preErr) {
+            console.error('Pre-delete select failed:', preErr);
+        }
+
+        // Attempt delete
+        const { data: deleteData, error: deleteError } = await supabaseClient
+            .from('memories')
+            .delete()
+            .eq('id', memoryId)
+            .select();
+
+        console.log('deleteMemory result:', { memoryId, deleteData, deleteError });
+
+        if (deleteError) {
+            console.error('Failed to delete memory:', deleteError);
+            alert(`Failed to delete memory: ${deleteError.message}`);
+            return;
+        }
+
+        // If deleteData is empty (RLS may block returning rows), verify by explicit select
+        if (!deleteData || (Array.isArray(deleteData) && deleteData.length === 0)) {
+            console.warn('Delete returned empty result; attempting explicit SELECT to verify deletion.');
+            try {
+                const { data: selectData, error: selectError } = await supabaseClient
+                    .from('memories')
+                    .select('id')
+                    .eq('id', memoryId);
+                console.log('Post-delete select check:', { selectData, selectError });
+                if (selectError) {
+                    console.error('Select after delete failed:', selectError);
+                }
+                // If the select shows no rows, the delete succeeded
+                if (!selectData || selectData.length === 0) {
+                    memories = memories.filter((memory) => memory.id !== memoryId);
+                    renderMemories();
+                    return;
+                }
+            } catch (selErr) {
+                console.error('Error during post-delete select check:', selErr);
+            }
+
+            // If we reach here, deletion did not complete; refetch full list
+            console.warn('Deletion did not remove row; refetching memories to sync UI.');
+            await fetchMemories();
+            return;
+        }
+
+        // If deleteData contains the deleted row(s), remove locally
+        memories = memories.filter((memory) => memory.id !== memoryId);
+        renderMemories();
+    } catch (err) {
+        console.error('Error deleting memory:', err);
     }
 }
 
@@ -289,6 +499,51 @@ async function fetchMemories() {
         console.error('Unexpected error fetching memories:', err);
         alert('Unexpected error loading memories. See console.');
     }
+}
+
+// Realtime subscription: listens for INSERT/UPDATE/DELETE on the `memories` table
+function subscribeToMemories() {
+    if (!supabaseClient || typeof supabaseClient.channel !== 'function') {
+        console.warn('Realtime not available on this Supabase client.');
+        return;
+    }
+
+    const ch = supabaseClient
+        .channel('public:memories')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'memories' }, (payload) => {
+            console.log('Realtime (memories) event:', payload);
+
+            const ev = payload.eventType || payload.event;
+
+            // Normalize new/old record across payload shapes
+            const newRec = payload.new ?? payload.record ?? payload.payload?.new;
+            const oldRec = payload.old ?? payload.old_record ?? payload.payload?.old;
+
+            if (ev === 'DELETE' || ev === 'delete') {
+                const id = oldRec?.id || (newRec && newRec.id);
+                if (!id) return;
+                memories = memories.filter(m => m.id !== id);
+                renderMemories();
+            } else if (ev === 'INSERT' || ev === 'insert') {
+                if (!newRec) return;
+                // prepend new memory
+                memories = [newRec, ...(memories || [])];
+                renderMemories();
+            } else if (ev === 'UPDATE' || ev === 'update') {
+                if (!newRec) return;
+                const idx = (memories || []).findIndex(m => m.id === newRec.id);
+                if (idx !== -1) {
+                    memories[idx] = newRec;
+                } else {
+                    memories.unshift(newRec);
+                }
+                renderMemories();
+            }
+        })
+        .subscribe();
+
+    console.log('Subscribed to memories realtime channel:', ch);
+    return ch;
 }
 
 async function uploadImage(file) {
@@ -769,6 +1024,8 @@ function renderMemories() {
         const dateHtml = memory.memory_date 
             ? `<div class="memory-date">${new Date(memory.memory_date).toLocaleDateString()} -</div>`
             : '';
+        const canDeleteMemories = currentUserIsAdmin();
+        const memoryDeleteHtml = canDeleteMemories ? '<button class="memory-delete-btn" title="Delete memory" style="position:absolute; top:0.75rem; right:0.75rem; border:none; background:rgba(255,255,255,0.9); border-radius:50%; width:2rem; height:2rem; font-size:1rem; cursor:pointer;">×</button>' : '';
 
         card.innerHTML = `
             <div class="photo-frame">
@@ -778,6 +1035,7 @@ function renderMemories() {
                 ${dateHtml}
                 <div class="caption">${memory.text}</div>
             </div>
+            ${memoryDeleteHtml}
         `;
 
         memoryGrid.appendChild(card);
@@ -800,6 +1058,14 @@ function renderMemories() {
                 modalVideo.load();
                 videoModal.classList.remove('hidden');
                 modalVideo.play();
+            });
+        }
+
+        if (canDeleteMemories) {
+            const deleteBtn = card.querySelector('.memory-delete-btn');
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                deleteMemory(memory.id);
             });
         }
     });
