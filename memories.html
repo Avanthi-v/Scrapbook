@@ -139,11 +139,15 @@
                 <!-- Notes will be injected here -->
             </div>
             <div class="notepad-input-area">
-                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center;">
                     <textarea id="new-note-input" placeholder="Add a new entry..." style="flex: 1;"></textarea>
+                    <button id="attach-audio-btn" class="attach-audio-btn" title="Attach audio file" type="button" style="margin-right:0.25rem;">
+                        <i data-lucide="paperclip"></i>
+                    </button>
                     <button id="record-voice-btn" class="voice-record-btn" title="Record voice note">
                         <i data-lucide="mic"></i>
                     </button>
+                    <input type="file" id="audio-file-input" accept="audio/*,video/*,audio/m4a" hidden>
                 </div>
                 <div id="voice-recording-indicator" class="voice-recording-indicator hidden">
                     <span class="recording-dot"></span>
@@ -156,6 +160,7 @@
                         <button id="discard-voice-btn" class="discard-voice-btn" style="flex: 1;">Discard</button>
                     </div>
                 </div>
+                <!-- audio attach input is placed next to the record button -->
                 <div id="voice-disabled-text" class="voice-disabled-text hidden" style="text-align: center; color: #999; font-size: 0.85rem; padding: 0.5rem;">
                     Voice recording not supported in your browser
                 </div>

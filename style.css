@@ -858,6 +858,31 @@ textarea {
     color: #666;
 }
 
+/* Attach audio (paperclip) button should match voice button styling */
+.attach-audio-btn {
+    padding: 0.5rem 0.6rem;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: var(--shadow-sm);
+}
+
+.attach-audio-btn:hover {
+    background: #f5f5f5;
+    border-color: #ccc;
+}
+
+.attach-audio-btn svg {
+    width: 20px;
+    height: 20px;
+    color: #666;
+}
+
 .voice-recording-indicator {
     display: flex;
     align-items: center;

@@ -151,6 +151,9 @@ const voicePlayback = document.getElementById('voice-playback');
 const useVoiceBtn = document.getElementById('use-voice-btn');
 const discardVoiceBtn = document.getElementById('discard-voice-btn');
 const voiceDisabledText = document.getElementById('voice-disabled-text');
+// Audio attach fallback elements
+const audioFileInput = document.getElementById('audio-file-input');
+const attachAudioBtn = document.getElementById('attach-audio-btn');
 
 let memories = [];
 let fileToUpload = null;
@@ -291,109 +294,90 @@ async function deleteNote(noteId, index) {
     }
 
     try {
-        console.log('deleteNote called for', { noteId, index, isAdmin: currentUserIsAdmin() });
-
-        // Diagnostic: fetch the row before attempting update to verify it exists
+        // Log auth session and row state to help diagnose RLS/permission issues
         try {
-            const { data: beforeData, error: beforeError } = await supabaseClient
-                .from('notes')
-                .select('id, notes_removed')
-                .eq('id', noteId);
-            console.log('Pre-update select for note:', { beforeData, beforeError });
-        } catch (preErr) {
-            console.error('Pre-update select failed:', preErr);
+            const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+            console.log('auth.getSession result for deleteNote:', { sessionError, sessionData });
+            console.log('auth user:', sessionData?.session?.user?.id, sessionData?.session?.user?.email);
+        } catch (sessionLogErr) {
+            console.warn('Could not read auth session before delete:', sessionLogErr);
         }
+
+        try {
+            const { data: beforeRow, error: beforeError } = await supabaseClient
+                .from('notes')
+                .select('*')
+                .eq('id', noteId);
+            console.log('Row before update (deleteNote):', { beforeRow, beforeError });
+        } catch (beforeErr) {
+            console.warn('Could not select row before update:', beforeErr);
+        }
+
+        console.log('deleteNote called for', { noteId, index, isAdmin: currentUserIsAdmin() });
 
         const { data, error } = await supabaseClient
             .from('notes')
             .update({ notes_removed: true })
             .eq('id', noteId)
-            .select();
+            .select('*');
 
         console.log('deleteNote result:', { noteId, data, error });
+        // Also log a stringified copy to avoid console object expansion confusion
+        try {
+            console.log('deleteNote result (stringified):', JSON.stringify({ noteId, data, error }));
+        } catch (e) {
+            // ignore stringify errors
+        }
 
         if (error) {
-            console.error("Failed to delete note:", error);
+            console.error('Failed to delete note:', error);
             alert(`Failed to delete note: ${error.message}`);
             return;
         }
 
-        // Handle different response shapes: some Supabase configs return
-        // an array, others an object, and RLS may cause `data` to be null.
-        if (!data) {
-            console.warn('No updated row returned after note update; attempting explicit SELECT to verify current row state.');
+        // If the update returned no rows (common when RLS prevents returning rows), verify with an explicit SELECT
+        if (!data || (Array.isArray(data) && data.length === 0)) {
+            console.warn('Update returned no rows; performing explicit SELECT to verify removal.');
             try {
-                const { data: selectData, error: selectError } = await supabaseClient
+                const { data: verifyData, error: verifyError } = await supabaseClient
                     .from('notes')
-                    .select('id, notes_removed')
+                    .select('*')
                     .eq('id', noteId);
 
-                console.log('Post-update select check:', { selectData, selectError });
+                console.log('deleteNote verify select:', { verifyData, verifyError });
 
-                if (selectError) {
-                    console.error('Select after update failed:', selectError);
-                } else if (selectData && selectData.length > 0) {
-                    console.log('Row after attempted update:', selectData[0]);
-                    if (selectData[0].notes_removed) {
-                        // The row was updated but update response omitted data (likely RLS). Remove locally.
-                        notes.splice(index, 1);
-                        displayNotes();
-                        return;
-                    }
+                if (verifyError) {
+                    console.error('Verification select failed:', verifyError);
+                    alert(`Could not verify deletion: ${verifyError.message}`);
+                    return;
                 }
+
+                // If the row no longer exists or is marked removed, update local UI
+                if (!verifyData || verifyData.length === 0 || verifyData[0]?.notes_removed) {
+                    const noteIndex = notes.findIndex((note) => note.id === noteId);
+                    if (noteIndex !== -1) notes.splice(noteIndex, 1);
+                    displayNotes();
+                    return;
+                }
+
+                // Otherwise, refresh the full list to sync UI
+                console.warn('Row still present after update; refetching notes to sync UI.');
+                await fetchNotes();
+                return;
             } catch (selErr) {
-                console.error('Error during post-update select check:', selErr);
-            }
-
-            console.warn('Falling back to refetching notes to sync UI. Check Supabase RLS/Row-Level policies if this repeats.');
-            await fetchNotes();
-            return;
-        }
-
-        let updatedRow = null;
-        if (Array.isArray(data)) {
-            if (data.length === 0) {
-                console.warn('Update returned empty array; attempting explicit SELECT to inspect row state.');
-                try {
-                    const { data: selectData, error: selectError } = await supabaseClient
-                        .from('notes')
-                        .select('id, notes_removed')
-                        .eq('id', noteId);
-                    console.log('Explicit select after empty update response:', { selectData, selectError });
-
-                    if (selectError) {
-                        console.error('Select after empty update response failed:', selectError);
-                    } else if (selectData && selectData.length > 0 && selectData[0].notes_removed) {
-                        notes.splice(index, 1);
-                        displayNotes();
-                        return;
-                    }
-                } catch (selErr) {
-                    console.error('Error during explicit select after empty update response:', selErr);
-                }
-
-                console.warn('Falling back to refetching notes after empty update response.');
+                console.error('Error during post-update verification select:', selErr);
                 await fetchNotes();
                 return;
             }
-            if (data.length > 1) {
-                console.warn('Update returned multiple rows for id', noteId, data);
-            }
-            updatedRow = data[0];
-        } else if (typeof data === 'object') {
-            updatedRow = data;
         }
 
-        if (!updatedRow) {
-            console.warn('Could not determine updated row shape; refetching notes as fallback.');
-            await fetchNotes();
-            return;
+        const noteIndex = notes.findIndex((note) => note.id === noteId);
+        if (noteIndex !== -1) {
+            notes.splice(noteIndex, 1);
         }
-
-        notes.splice(index, 1);
         displayNotes();
     } catch (err) {
-        console.error("Error deleting note:", err);
+        console.error('Error deleting note:', err);
         alert(`Error deleting note: ${err.message}`);
     }
 }
@@ -659,6 +643,16 @@ newNoteInput.addEventListener('keypress', (e) => {
 async function startVoiceRecording() {
     try {
         let stream = null;
+
+        // Feature detection: MediaRecorder availability
+        if (typeof MediaRecorder === 'undefined') {
+            console.warn('MediaRecorder not supported in this browser.');
+            if (voiceDisabledText) {
+                voiceDisabledText.classList.remove('hidden');
+                voiceDisabledText.textContent = 'Voice recording is not supported by this browser. Try Chrome/Firefox or update your OS.';
+            }
+            return;
+        }
         
         // Try to get audio stream with multiple constraint options
         const audioConstraints = [
@@ -683,7 +677,35 @@ async function startVoiceRecording() {
             throw new Error('Unable to access microphone with any available constraints. Please check your device permissions and try a different audio input device.');
         }
         
-        mediaRecorder = new MediaRecorder(stream);
+        // Pick a supported mimeType where possible (mobile Safari may not support webm)
+        let mimeType = '';
+        const candidates = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4'];
+        for (const c of candidates) {
+            try {
+                if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) {
+                    mimeType = c;
+                    break;
+                }
+            } catch (e) {
+                // ignore
+            }
+        }
+
+        try {
+            mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+        } catch (mrErr) {
+            console.warn('Failed to create MediaRecorder with mimeType', mimeType, mrErr);
+            try {
+                mediaRecorder = new MediaRecorder(stream);
+            } catch (mrErr2) {
+                console.error('MediaRecorder creation failed:', mrErr2);
+                if (voiceDisabledText) {
+                    voiceDisabledText.classList.remove('hidden');
+                    voiceDisabledText.textContent = 'Voice recording not available on this device/browser.';
+                }
+                return;
+            }
+        }
         audioChunks = [];
         recordedBlob = null;
 
@@ -692,7 +714,9 @@ async function startVoiceRecording() {
         });
 
         mediaRecorder.addEventListener('stop', () => {
-            recordedBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            // Use the recorded mimeType if available, otherwise guess
+            const blobType = (mediaRecorder && mediaRecorder.mimeType) || mimeType || 'audio/webm';
+            recordedBlob = new Blob(audioChunks, { type: blobType });
             const audioUrl = URL.createObjectURL(recordedBlob);
             voicePlayback.src = audioUrl;
             
@@ -720,8 +744,22 @@ async function startVoiceRecording() {
         }, 100);
     } catch (err) {
         console.error('Microphone access denied:', err);
-        if (!isVoiceRecordingSupported) {
-            voiceDisabledText.classList.remove('hidden');
+        // Provide clearer guidance for common mobile errors
+        if (err && err.name === 'NotAllowedError') {
+            if (voiceDisabledText) {
+                voiceDisabledText.classList.remove('hidden');
+                voiceDisabledText.textContent = 'Microphone permission denied. Enable microphone access in your browser settings.';
+            }
+        } else if (err && (err.name === 'NotFoundError' || err.name === 'OverconstrainedError')) {
+            if (voiceDisabledText) {
+                voiceDisabledText.classList.remove('hidden');
+                voiceDisabledText.textContent = 'No microphone found. Please attach or enable a microphone.';
+            }
+        } else {
+            if (!isVoiceRecordingSupported && voiceDisabledText) {
+                voiceDisabledText.classList.remove('hidden');
+                voiceDisabledText.textContent = 'Voice recording not supported on this device/browser.';
+            }
         }
     }
 }
@@ -756,12 +794,13 @@ async function saveVoiceNote() {
             .from('scrapbook-memories')
             .getPublicUrl(fileName);
 
-        // Save as a note with voice URL
-        newNoteInput.value = `[Voice Note: ${new Date().toLocaleTimeString()}]`;
-        
+        // Save as a note with voice URL. The note message is optional.
+        const noteText = (newNoteInput && newNoteInput.value) ? newNoteInput.value.trim() : '';
+        const payload = { note_message: noteText || '', notes_removed: false, voice_url: publicUrl };
+
         const { data: insertData, error: insertError } = await supabaseClient
             .from('notes')
-            .insert([{ note_message: newNoteInput.value, notes_removed: false, voice_url: publicUrl }])
+            .insert([payload])
             .select();
 
         if (insertError) {
@@ -774,7 +813,7 @@ async function saveVoiceNote() {
         displayNotes();
         
         // Reset voice recording UI
-        newNoteInput.value = '';
+        if (newNoteInput) newNoteInput.value = '';
         voicePlayback.src = '';
         recordedBlob = null;
         voicePlaybackArea.classList.add('hidden');
@@ -827,6 +866,75 @@ discardVoiceBtn.addEventListener('click', (e) => {
     e.preventDefault();
     discardVoiceRecording();
 });
+
+// Audio attach fallback listeners (attach button beside record button)
+if (attachAudioBtn && audioFileInput) {
+    attachAudioBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        audioFileInput.click();
+    });
+
+    audioFileInput.addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        // show filename in button title
+        attachAudioBtn.title = `Selected: ${file.name}`;
+        // Automatically upload and insert as a note
+        try {
+            attachAudioBtn.disabled = true;
+            const prevHtml = attachAudioBtn.innerHTML;
+            attachAudioBtn.innerHTML = '<i data-lucide="upload-cloud"></i>';
+            lucide.createIcons();
+
+            const fileName = `voice-upload-${Date.now()}-${file.name}`;
+            const { data, error } = await supabaseClient.storage
+                .from('scrapbook-memories')
+                .upload(fileName, file);
+
+            if (error) {
+                console.error('Audio file upload error:', error);
+                attachAudioBtn.title = 'Upload failed';
+                attachAudioBtn.innerHTML = prevHtml;
+                attachAudioBtn.disabled = false;
+                return;
+            }
+
+            const { data: { publicUrl } } = supabaseClient.storage
+                .from('scrapbook-memories')
+                .getPublicUrl(fileName);
+
+            const noteText = (newNoteInput && newNoteInput.value) ? newNoteInput.value.trim() : '';
+            const payload = { note_message: noteText || '', notes_removed: false, voice_url: publicUrl };
+
+            const { data: insertData, error: insertError } = await supabaseClient
+                .from('notes')
+                .insert([payload])
+                .select();
+
+            if (insertError) {
+                console.error('Saving uploaded audio as note failed:', insertError);
+                attachAudioBtn.title = 'Save failed';
+                attachAudioBtn.innerHTML = prevHtml;
+                attachAudioBtn.disabled = false;
+                return;
+            }
+
+            notes.unshift(insertData[0]);
+            displayNotes();
+            attachAudioBtn.title = 'Uploaded';
+            attachAudioBtn.innerHTML = prevHtml;
+            audioFileInput.value = '';
+            if (newNoteInput) newNoteInput.value = '';
+            attachAudioBtn.disabled = false;
+        } catch (err) {
+            console.error('Error handling audio upload:', err);
+            attachAudioBtn.title = 'Upload error';
+            attachAudioBtn.disabled = false;
+            attachAudioBtn.innerHTML = '<i data-lucide="paperclip"></i>';
+            lucide.createIcons();
+        }
+    });
+}
 
 // Tab Switching
 tabs.forEach(tab => {
